@@ -105,7 +105,16 @@ class Tables(commands.Cog):
         err_str = ""
         for i, player in enumerate(players):
             if player is None:
-                err_str += f"{names[i]}\n"
+                allowed_characters = 'abcdefghijklmnopqrstuvwxyz._ -1234567890'
+                valid_name = len(names[i]) <= 16
+                for c in range(len(names[i])):
+                    if names[i][c].lower() not in allowed_characters:
+                        valid_name = False
+                        break
+                if valid_name:
+                    err_str += f"{names[i]}\n"
+                else:
+                    err_str += f"<invalid_name>\n"
         if len(err_str) > 0:
             await ctx.send(f"The following players cannot be found on the leaderboard:\n{err_str}")
             return
@@ -151,7 +160,16 @@ class Tables(commands.Cog):
             err_str = ""
             for i, player in enumerate(players):
                 if player is None:
-                    err_str += f"{names[i]}\n"
+                    allowed_characters = 'abcdefghijklmnopqrstuvwxyz._ -1234567890'
+                    valid_name = len(names[i]) <= 16
+                    for c in range(len(names[i])):
+                        if names[i][c].lower() not in allowed_characters:
+                            valid_name = False
+                            break
+                    if valid_name:
+                        err_str += f"{names[i]}\n"
+                    else:
+                        err_str += f"<invalid_name>\n"
             if len(err_str) > 0:
                 await ctx.send(f"The following players cannot be found on the leaderboard for table ID {match_id}:\n{err_str}")
                 return
