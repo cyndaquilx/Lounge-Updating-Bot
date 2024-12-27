@@ -178,6 +178,16 @@ async def check_valid_name(ctx: commands.Context, lb: LeaderboardConfig, name: s
             return False
     return True
 
+# Return true if the input string can be displayed with limited side-effect
+def check_displayable_name(name: str):
+    if len(name) > 16:
+        return False
+    allowed_characters = 'abcdefghijklmnopqrstuvwxyz._ -1234567890'
+    for c in range(len(name)):
+        if name[c].lower() not in allowed_characters:
+            return False
+    return True
+
 async def yes_no_check(ctx: commands.Context, message: discord.Message):
     #ballot box with check emoji
     CHECK_BOX = "\U00002611"

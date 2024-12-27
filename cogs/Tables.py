@@ -5,7 +5,7 @@ import re
 
 import API.post, API.get
 
-from custom_checks import command_check_reporter_roles, check_staff_roles, leaderboard_autocomplete
+from custom_checks import command_check_reporter_roles, check_staff_roles, leaderboard_autocomplete, check_displayable_name
 from models import TableBasic
 from util import submit_table, delete_table, get_leaderboard
 from datetime import datetime
@@ -105,13 +105,7 @@ class Tables(commands.Cog):
         err_str = ""
         for i, player in enumerate(players):
             if player is None:
-                allowed_characters = 'abcdefghijklmnopqrstuvwxyz._ -1234567890'
-                valid_name = len(names[i]) <= 16
-                for c in range(len(names[i])):
-                    if names[i][c].lower() not in allowed_characters:
-                        valid_name = False
-                        break
-                if valid_name:
+                if check_displayable_name(names[i]):
                     err_str += f"{names[i]}\n"
                 else:
                     err_str += f"<invalid_name>\n"
@@ -160,13 +154,7 @@ class Tables(commands.Cog):
             err_str = ""
             for i, player in enumerate(players):
                 if player is None:
-                    allowed_characters = 'abcdefghijklmnopqrstuvwxyz._ -1234567890'
-                    valid_name = len(names[i]) <= 16
-                    for c in range(len(names[i])):
-                        if names[i][c].lower() not in allowed_characters:
-                            valid_name = False
-                            break
-                    if valid_name:
+                    if check_displayable_name(names[i]):
                         err_str += f"{names[i]}\n"
                     else:
                         err_str += f"<invalid_name>\n"
