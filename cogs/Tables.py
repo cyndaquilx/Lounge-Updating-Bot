@@ -5,7 +5,7 @@ import re
 
 import API.post, API.get
 
-from custom_checks import command_check_reporter_roles, check_staff_roles, leaderboard_autocomplete
+from custom_checks import command_check_reporter_roles, check_staff_roles, leaderboard_autocomplete, check_displayable_name
 from models import TableBasic
 from util import submit_table, delete_table, get_leaderboard
 from datetime import datetime
@@ -105,7 +105,10 @@ class Tables(commands.Cog):
         err_str = ""
         for i, player in enumerate(players):
             if player is None:
-                err_str += f"{names[i]}\n"
+                if check_displayable_name(names[i]):
+                    err_str += f"{names[i]}\n"
+                else:
+                    err_str += f"<invalid_name>\n"
         if len(err_str) > 0:
             await ctx.send(f"The following players cannot be found on the leaderboard:\n{err_str}")
             return
@@ -151,7 +154,10 @@ class Tables(commands.Cog):
             err_str = ""
             for i, player in enumerate(players):
                 if player is None:
-                    err_str += f"{names[i]}\n"
+                    if check_displayable_name(names[i]):
+                        err_str += f"{names[i]}\n"
+                    else:
+                        err_str += f"<invalid_name>\n"
             if len(err_str) > 0:
                 await ctx.send(f"The following players cannot be found on the leaderboard for table ID {match_id}:\n{err_str}")
                 return
