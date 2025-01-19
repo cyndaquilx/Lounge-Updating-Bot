@@ -25,15 +25,14 @@ async def give_placement_role(ctx: commands.Context, lb: LeaderboardConfig, play
     return True
 
 async def place_player_with_mmr(ctx: commands.Context, lb: LeaderboardConfig, mmr: int, name: str, force=False):
-    success, error = await API.post.placePlayer(lb.website_credentials, mmr, name, force=force)
-    if success is False:
+    player, error = await API.post.placePlayer(lb.website_credentials, mmr, name, force=force)
+    if player is None:
         await ctx.send(f"An error occurred while trying to place {name}: {error}")
         return False
-    player = await API.get.getPlayer(lb.website_credentials, name)
+    await ctx.send(f"Successfully placed {player.name} with {mmr} MMR")
     success = await give_placement_role(ctx, lb, player, mmr)
     if not success:
         return
-    await ctx.send(f"Successfully placed {player.name} with {mmr} MMR")
     if force:
         e = discord.Embed(title="Player force placed")
         e.add_field(name="Player", value=player.name, inline=False)

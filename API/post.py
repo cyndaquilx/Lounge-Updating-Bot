@@ -1,5 +1,5 @@
 import aiohttp
-from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus
+from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus, PlayerPlacement
 
 headers = {'Content-type': 'application/json'}
 
@@ -91,6 +91,16 @@ async def placePlayer(credentials: WebsiteCredentials, mmr:int, name:str, force=
             body = await resp.json()
             player = Player.from_api_response(body)
             return player, None
+        
+async def placeManyPlayers(credentials: WebsiteCredentials, placements: list[PlayerPlacement]):
+    request_url = f"{credentials.url}/api/player/bulkPlacement"
+    body = {"playerPlacements": [{"name": p.name, "mmr": p.mmr} for p in placements]}
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.post(request_url,headers=headers,json=body) as resp:
+            if resp.status != 204:
+                error = await resp.text()
+                return False, error
+            return True, None
 
 async def updatePlayerName(credentials: WebsiteCredentials, oldName: str, newName: str):
     request_url = f"{credentials.url}/api/player/update/name?name={oldName}&newName={newName}"

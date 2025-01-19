@@ -7,7 +7,7 @@ import API.post, API.get
 import asyncio
 
 from util import get_leaderboard, get_leaderboard_slash, fix_player_role
-from models import ServerConfig, LeaderboardConfig
+from models import ServerConfig, LeaderboardConfig, PlayerPlacement
 from custom_checks import leaderboard_autocomplete, app_command_check_admin_roles, command_check_admin_roles
 from io import StringIO
 import csv
@@ -28,17 +28,29 @@ class Admin(commands.Cog):
         decoded_file = file.decode().splitlines()
         row_count = len(decoded_file)
         reader = csv.reader(decoded_file)
-        errors = "Errors:\n"
-        for i, row in enumerate(reader):
-            name, mmr = row
-            player, error = await API.post.placePlayer(lb.website_credentials, mmr, name)
-            if player is None:
-               errors += f"{name} - {error}\n"
-            if (i+1) % 100 == 0:
-                await ctx.send(f"{i+1}/{row_count}")
-            await asyncio.sleep(0.05)
-        error_log = discord.File(StringIO(errors), filename="error_log.txt")
-        await ctx.send(f"{row_count}/{row_count} - done", file=error_log)
+        if lb.enable_bulk_placement_endpoint:
+            placements: list[PlayerPlacement] = []
+            for i, row in enumerate(reader):
+                name, mmr = row
+                placements.append(PlayerPlacement(name, mmr))
+            success, error = await API.post.placeManyPlayers(lb.website_credentials, placements)
+            if not success:
+                await ctx.send(f"An error occurred: {error}")
+                return
+            else:
+                await ctx.send("Done")
+        else: 
+            errors = "Errors:\n"
+            for i, row in enumerate(reader):
+                name, mmr = row
+                player, error = await API.post.placePlayer(lb.website_credentials, mmr, name)
+                if player is None:
+                    errors += f"{name} - {error}\n"
+                if (i+1) % 100 == 0:
+                    await ctx.send(f"{i+1}/{row_count}")
+                await asyncio.sleep(0.05)
+            error_log = discord.File(StringIO(errors), filename="error_log.txt")
+            await ctx.send(f"{row_count}/{row_count} - done", file=error_log)
 
     async def get_player_list(self, ctx: commands.Context, lb: LeaderboardConfig):
         await ctx.defer()

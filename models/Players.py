@@ -181,3 +181,8 @@ class ListPlayer:
         for player in players:
             player_list.append(ListPlayer.from_api_response(player))
         return player_list
+
+@dataclass
+class PlayerPlacement:
+    name: str
+    mmr: int

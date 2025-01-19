@@ -311,21 +311,21 @@ class Players(commands.Cog):
         await ctx.send(f"Successfully placed {player.name} in {rank} with {placeMMR} MMR")
         return True
     
-    @commands.check(command_check_staff_roles)
-    @commands.command(name="place")
-    async def place_rank_text(self, ctx, rank, *, name):
-        lb = get_leaderboard(ctx)
-        await self.place_player_in_rank(ctx, lb, rank, name)
+    # @commands.check(command_check_staff_roles)
+    # @commands.command(name="place")
+    # async def place_rank_text(self, ctx, rank, *, name):
+    #     lb = get_leaderboard(ctx)
+    #     await self.place_player_in_rank(ctx, lb, rank, name)
 
     @commands.check(command_check_staff_roles)
-    @commands.command(name="placeMMR")
+    @commands.command(name="place", aliases=['placemmr'])
     async def place_mmr_text(self, ctx, mmr:int, *, name):
         lb = get_leaderboard(ctx)
         await place_player_with_mmr(ctx, lb, mmr, name)
     
     @app_commands.check(custom_checks.app_command_check_staff_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @player_group.command(name="place_mmr")
+    @player_group.command(name="place")
     async def place_mmr_slash(self, interaction: discord.Interaction, mmr:app_commands.Range[int, 0], name:str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)

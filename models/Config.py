@@ -31,6 +31,7 @@ class LeaderboardConfig:
     races_per_mogi: int
     gps_per_mogi: int
     enable_verification_dms: bool
+    enable_bulk_placement_endpoint: bool
     valid_formats: list[int]
     allow_numbered_names: bool
     ranks: list[LeaderboardRank]
