@@ -114,7 +114,7 @@ class Admin(commands.Cog):
     @commands.check(command_check_admin_roles)
     @commands.command()
     async def startseason(self, ctx: commands.Context, season_num:int):
-        server_config: ServerConfig | None = ctx.bot.config.get(ctx.guild.id, None)
+        server_config: ServerConfig | None = ctx.bot.config.servers.get(ctx.guild.id, None)
         if server_config is None:
             await ctx.send("You cannot use this command in this server")
             return
