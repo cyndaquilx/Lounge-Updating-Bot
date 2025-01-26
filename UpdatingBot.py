@@ -22,7 +22,7 @@ bot.config = config
 print(bot.command_prefix)
 
 initial_extensions = ['cogs.Updating', 'cogs.Tables', 'cogs.Admin', 'cogs.Restrictions', 'cogs.Make_table', 'cogs.Players', 
-                      'cogs.Names', 'cogs.Penalties', 'cogs.Bonuses', 'cogs.Reactions']
+                      'cogs.Names', 'cogs.Penalties', 'cogs.Bonuses', 'cogs.Reactions', 'cogs.Request']
 #initial_extensions = ['cogs.Admin',]
 
 @bot.event

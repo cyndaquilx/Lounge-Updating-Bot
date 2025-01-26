@@ -36,6 +36,7 @@ class LeaderboardConfig:
     allow_numbered_names: bool
     ranks: list[LeaderboardRank]
     tier_results_channels: dict[str, int]
+    penalty_channel: int
     place_rank_mmrs: dict[str, int]
     place_scores: dict[int, int]
 
