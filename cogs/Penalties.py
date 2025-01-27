@@ -105,7 +105,8 @@ class Penalties(commands.Cog):
             except discord.NotFound:
                 pass
         else:
-            await ctx.send(f"Added -{abs(amount)} penalty to {pen.player_name} in {pen_msg.jump_url} (ID: {pen.id})")
+            if not is_request:
+                await ctx.send(f"Added -{abs(amount)} penalty to {pen.player_name} in {pen_msg.jump_url} (ID: {pen.id})")
 
     async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], reason: str | None, is_anonymous=False, is_strike=False, is_request=False):
         tier = tier.upper()
