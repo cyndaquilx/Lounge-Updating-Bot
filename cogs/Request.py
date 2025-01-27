@@ -6,6 +6,7 @@ from util import get_leaderboard_slash, set_multipliers
 from models import LeaderboardConfig
 from custom_checks import request_validation_check, app_command_check_reporter_roles
 import API.get
+import custom_checks
 
 from typing import Optional
 from enum import Enum
@@ -129,17 +130,19 @@ class Request(commands.Cog):
 
     @app_commands.check(app_command_check_reporter_roles)
     @request_group.command(name="penalty")
-    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: PenaltyType, player_name: str, repick_number: Optional[RepickSize], reason: Optional[str]):
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: PenaltyType, player_name: str, repick_number: Optional[RepickSize], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, None)
+        lb = get_leaderboard_slash(ctx, leaderboard)
         repick_number = repick_number.value if repick_number != None else 1
         await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=repick_number, reason=reason)
 
     @app_commands.check(app_command_check_reporter_roles)
     @request_group.command(name="loss_reduction")
-    async def append_loss_reduction_slash(self, interaction: discord.Interaction, table_id: int, player_name: str, races_played_alone: int):
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def append_loss_reduction_slash(self, interaction: discord.Interaction, table_id: int, player_name: str, races_played_alone: int, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, None)
+        lb = get_leaderboard_slash(ctx, leaderboard)
         if races_played_alone < 0 or races_played_alone > 12:
             await ctx.send("You entered a wrong number of races")
             return
