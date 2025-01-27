@@ -18,7 +18,7 @@ class Request(commands.Cog):
     request_group = app_commands.Group(name="request", description="Requests to staff")
 
     #Enum types to limit command args
-    PenaltyType = Enum('PenaltyType', [('Late', 1), ('Drop mid mogi', 2), ('Drop before start', 3), ('Tag penalty', 4), ('Repick', 5)])
+    PenaltyType = Enum('PenaltyType', [('Late', 1), ('Drop mid mogi', 2), ('Drop before start', 3), ('Tag penalty', 4), ('Repick', 5), ('No video proof', 6), ('Host issues', 7), ('Host carelessness prevents a table from being made', 8), ('No host', 9)])
     RepickSize = Enum('RepickSize', [('1', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6), ('7', 7), ('8', 8), ('9', 9), ('10', 10), ('11', 11)])
 
     async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: PenaltyType, player_name: str, repick_number=1, reason=""):
@@ -74,6 +74,14 @@ class Request(commands.Cog):
                         await penalties_cog.add_penalty(ctx, lb, 50*(repick_number-(4*(total_pen_func_call-1))), "", [player_name], reason=penalty_type.name, is_anonymous=True, is_strike=need_strike, is_request=True)
                     else:
                         await penalties_cog.add_penalty(ctx, lb, 200, "", [player_name], reason=penalty_type.name, is_anonymous=True, is_strike=False, is_request=True)
+            elif penalty_type.name == "No video proof":
+                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type.name, is_anonymous=True, is_strike=True, is_request=True)
+            elif penalty_type.name == "Host issues":
+                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type.name, is_anonymous=True, is_strike=True, is_request=True)
+            elif penalty_type.name == "Host carelessness prevents a table from being made":
+                await penalties_cog.add_penalty(ctx, lb, 100, "", [player_name], reason=penalty_type.name, is_anonymous=True, is_strike=True, is_request=True)
+            elif penalty_type.name == "No host":
+                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type.name, is_anonymous=True, is_strike=True, is_request=True)
 
     async def add_loss_reduction_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, player_name: str, races_played_alone: int):
         e = discord.Embed(title="Loss reduction request")
