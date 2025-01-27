@@ -2,13 +2,12 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import API.get, API.post
-from models import LeaderboardConfig, Player, Penalty
+from models import LeaderboardConfig, Player
 from util import update_roles, get_leaderboard, get_leaderboard_slash
 from custom_checks import app_command_check_staff_roles, command_check_staff_roles
 import custom_checks
 from typing import Optional
 from datetime import timedelta
-from datetime import datetime
 
 class Penalties(commands.Cog):
     def __init__(self, bot):
