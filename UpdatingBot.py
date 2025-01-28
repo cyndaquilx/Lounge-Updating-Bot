@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import logging
 import asyncio
-from util import LeaderboardNotFoundException, GuildNotFoundException, get_config
+from util import LeaderboardNotFoundException, GuildNotFoundException, get_config, Translator
 
 config = get_config('./config.json')
 
@@ -86,8 +86,10 @@ async def on_app_command_error(interaction:discord.Interaction, error):
 
 async def main():
     async with bot:
+        await bot.tree.set_translator(Translator.CustomTranslator())
         for extension in initial_extensions:
             await bot.load_extension(extension)
         await bot.start(bot.config.token)
+        await bot.tree.sync()
 
 asyncio.run(main())

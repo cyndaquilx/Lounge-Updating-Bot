@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.app_commands import locale_str
 
 from util import get_leaderboard_slash
 from models import LeaderboardConfig, ServerConfig
@@ -48,7 +49,9 @@ class Request(commands.Cog):
     request_queue = {}
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-        choices = [app_commands.Choice(name=penalty_name, value=penalty_name) for penalty_name in penalty_static_info.keys()]
+        choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
+        for choice in choices:
+            print(choice)
         return choices
 
     #Enum type to limit command args
