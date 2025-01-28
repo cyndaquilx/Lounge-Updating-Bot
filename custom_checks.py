@@ -188,31 +188,6 @@ def check_displayable_name(name: str):
             return False
     return True
 
-async def request_validation_check(ctx: commands.Context, message: discord.Message):
-    CHECK_BOX = "\U00002611"
-    X_MARK = "\U0000274C"
-    await message.add_reaction(CHECK_BOX)
-    await message.add_reaction(X_MARK)
-    def check(reaction, user):
-        server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
-        if user != ctx.author and not check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
-            return False
-        if reaction.message != message:
-            return False
-        if str(reaction.emoji) == X_MARK:
-            return True
-        if str(reaction.emoji) == CHECK_BOX and check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
-            return True
-    try:
-        reaction, user = await ctx.bot.wait_for('reaction_add', check=check)
-    except:
-        return (False, None)
-
-    if str(reaction.emoji) == X_MARK:
-        return (False, user)
-
-    return (True, user)
-
 async def yes_no_check(ctx: commands.Context, message: discord.Message):
     #ballot box with check emoji
     CHECK_BOX = "\U00002611"

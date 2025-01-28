@@ -67,7 +67,7 @@ class Penalties(commands.Cog):
         e.add_field(name="Player", value=pen.player_name, inline=False)
         e.add_field(name="Amount", value="-%d" % abs(amount))
         e.add_field(name="ID", value=pen.id)
-        if not is_request:
+        if tier != "":
             e.add_field(name="Tier", value=tier)
         if not is_anonymous:
             e.add_field(name="Given by", value=ctx.author.mention)
@@ -112,10 +112,10 @@ class Penalties(commands.Cog):
         tier = tier.upper()
         if tier not in lb.tier_results_channels.keys() and not is_request:
             await ctx.send(f"Your tier is not valid! Valid tiers are: {list(lb.tier_results_channels.keys())}")
-            return
+            return False
         if abs(amount) > 200:
             await ctx.send("Individual penalties can only be 200 points or lower")
-            return
+            return False
         channel = ctx.guild.get_channel(lb.tier_results_channels[tier]) if is_request == False else ctx.guild.get_channel(lb.penalty_channel)
         players: list[Player] = []
         for name in names:
@@ -123,16 +123,17 @@ class Penalties(commands.Cog):
                 player = await API.get.getPlayerFromDiscord(lb.website_credentials, name)
                 if player is None:
                     await ctx.send(f"The following player could not be found: {name}")
-                    return
+                    return False
                 players.append(player)
             else:
                 player = await API.get.getPlayer(lb.website_credentials, name)
                 if player is None:
                     await ctx.send(f"The following player could not be found: {name}")
-                    return
+                    return False
                 players.append(player)
         for player in players:
             await self.pen_channel(ctx, lb, player, tier, reason, amount, channel, is_anonymous, is_strike, is_request=is_request)
+        return True
 
     async def parse_and_add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier, args: str, is_anonymous=False, is_strike=False):
         split_args = args.split(";")

@@ -2,9 +2,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from util import get_leaderboard_slash, set_multipliers
+from util import get_leaderboard_slash
 from models import LeaderboardConfig, ServerConfig
-from custom_checks import request_validation_check, app_command_check_reporter_roles
+from custom_checks import app_command_check_reporter_roles, check_role_list
 import API.get
 import custom_checks
 
@@ -13,11 +13,13 @@ from enum import Enum
 import math
 
 class PenaltyInstance:
-    def __init__(self, penalty_name, amount, player_name, total_repick, reason, is_strike):
+    def __init__(self, penalty_name, amount, player_name, total_repick, races_played_alone, table_id, reason, is_strike):
         self.penalty_name = penalty_name
         self.amount = amount
         self.player_name = player_name
         self.total_repick = total_repick
+        self.races_played_alone = races_played_alone
+        self.table_id = table_id
         self.reason = reason
         self.is_strike = is_strike
 
@@ -33,13 +35,16 @@ penalty_static_info = {
     "No host": (50, True)
 }
 
+CHECK_BOX = "\U00002611"
+X_MARK = "\U0000274C"
+
 class Request(commands.Cog):
     def __init__ (self, bot):
         self.bot = bot
 
     request_group = app_commands.Group(name="request", description="Requests to staff")
 
-    #Dictionary containing: message ID -> penalty instance
+    #Dictionary containing: message ID -> (penalty instance, request log, context, leaderboardconfig)
     request_queue = {}
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -49,110 +54,35 @@ class Request(commands.Cog):
     #Enum type to limit command args
     RepickSize = Enum('RepickSize', [('1', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6), ('7', 7), ('8', 8), ('9', 9), ('10', 10), ('11', 11)])
 
-    async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: str, player_name: str, repick_number=0, reason=""):
+    async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: str, player_name: str, repick_number=0, races_played_alone=0, table_id=0, reason=""):
         e = discord.Embed(title="Penalty request")
         e.add_field(name="Player", value=player_name, inline=False)
         e.add_field(name="Penalty type", value=penalty_type)
         if penalty_type == "Repick":
             e.add_field(name="Number of repick", value=repick_number)
         e.add_field(name="Issued from", value=ctx.channel.mention)
+        if table_id != 0 and table_id != None:
+            e.add_field(name="Table ID", value=table_id)
         if reason != "" and reason != None:
             e.add_field(name="Reason from reporter", value=reason, inline=False)
         penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
         embed_message = await penalty_channel.send(embed=e)
-        
+                
+        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
+        if penalty_type == "Drop mid mogi":
+            e.add_field(name="Number of races with missing teammate", value=races_played_alone)
+        e.add_field(name="Requested by", value=ctx.author, inline=False)
+        embed_message_log = await updating_log.send(embed=e)
+
         #Reply for the reporter
         await ctx.send(f"Penalty request issued for player {player_name}. Reason: {penalty_type}\nLink to request: {embed_message.jump_url}", ephemeral=True)
-        
-        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-        e.add_field(name="Requested by", value=ctx.author, inline=False)
-        embed_message_log = await updating_log.send(embed=e)
 
-        penalty_accepted, user = await request_validation_check(ctx, embed_message)
-        await embed_message.delete()
-        if user == None:
-            ctx.send("Error while trying to validate request")
-            return
-        if not penalty_accepted:
-            e_refused = discord.Embed(title="Penalty request refused")
-            e_refused.add_field(name="Request", value=embed_message_log.jump_url)
-            e_refused.add_field(name="Refused by", value=user.mention, inline=False)
-            await updating_log.send(embed=e_refused)
-        else:
-            e_accepted = discord.Embed(title="Penalty request accepted")
-            e_accepted.add_field(name="Request", value=embed_message_log.jump_url)
-            e_accepted.add_field(name="Accepted by", value=user.mention, inline=False)
-            await updating_log.send(embed=e_accepted)
+        await embed_message.add_reaction(CHECK_BOX)
+        await embed_message.add_reaction(X_MARK)
 
-            penalties_cog = self.bot.get_cog('Penalties')
-            ctx.author = user
-            if penalty_type == "Late":
-                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
-            elif penalty_type == "Drop mid mogi":
-                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
-            elif penalty_type == "Drop before start":
-                await penalties_cog.add_penalty(ctx, lb, 100, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
-            elif penalty_type == "Tag penalty":
-                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=False, is_request=True)
-            elif penalty_type == "Repick":
-                total_pen_func_call = math.ceil(repick_number/4)
-                for i in range(total_pen_func_call):
-                    if i == total_pen_func_call-1:
-                        need_strike = repick_number > 1
-                        await penalties_cog.add_penalty(ctx, lb, 50*(repick_number-(4*(total_pen_func_call-1))), "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=need_strike, is_request=True)
-                    else:
-                        await penalties_cog.add_penalty(ctx, lb, 200, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=False, is_request=True)
-            elif penalty_type == "No video proof":
-                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
-            elif penalty_type == "Host issues":
-                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
-            elif penalty_type == "Host carelessness prevents a table from being made":
-                await penalties_cog.add_penalty(ctx, lb, 100, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
-            elif penalty_type == "No host":
-                await penalties_cog.add_penalty(ctx, lb, 50, "", [player_name], reason=penalty_type, is_anonymous=True, is_strike=True, is_request=True)
+        penalty_data = penalty_static_info.get(penalty_type)
+        self.request_queue[embed_message.id] = (PenaltyInstance(penalty_type, penalty_data[0], player_name, repick_number, races_played_alone, table_id, reason, penalty_data[1]), embed_message_log, ctx, lb)
 
-    async def add_loss_reduction_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, player_name: str, races_played_alone: int):
-        e = discord.Embed(title="Loss reduction request")
-        e.add_field(name="Player", value=player_name, inline=False)
-        e.add_field(name="Table ID", value=table_id)
-        e.add_field(name="Races played alone", value=races_played_alone)
-        penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
-        embed_message = await penalty_channel.send(embed=e)
-
-        #Reply for the reporter
-        await ctx.send(f"Loss reduction request issued for player {player_name}.\nLink to request: {embed_message.jump_url}", ephemeral=True)
-
-        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-        e.add_field(name="Requested by", value=ctx.author, inline=False)
-        embed_message_log = await updating_log.send(embed=e)
-
-        loss_reduction_accepted, user = await request_validation_check(ctx, embed_message)
-        await embed_message.delete()
-        if user == None:
-            ctx.send("Error while trying to validate request")
-            return
-        if not loss_reduction_accepted:
-            e_refused = discord.Embed(title="Loss reduction request refused")
-            e_refused.add_field(name="Request", value=embed_message_log.jump_url)
-            e_refused.add_field(name="Refused by", value=user.mention, inline=False)
-            await updating_log.send(embed=e_refused)
-        else:
-            e_accepted = discord.Embed(title="Loss reduction request accepted")
-            e_accepted.add_field(name="Request", value=embed_message_log.jump_url)
-            e_accepted.add_field(name="Accepted by", value=user.mention, inline=False)
-            await updating_log.send(embed=e_accepted)
-
-            #Multiplier value is written using 2 digit precision
-            ctx.author = user
-            multiplier = "%.2f" % (races_played_alone / 12)
-            print(multiplier)
-            if races_played_alone < 3:
-                multiplier = "1"
-            if races_played_alone > 7:
-                multiplier = "0"
-            setml_args = player_name + " " + multiplier
-
-            await set_multipliers(ctx, lb, table_id, setml_args)
 
     #Used to monitor when someone reacts to a request in the penalty channel
     @commands.Cog.listener(name='on_reaction_add')
@@ -168,36 +98,92 @@ class Request(commands.Cog):
                 channel_check = True
                 break
         if not channel_check:
+            return    
+        penalty_data = self.request_queue.get(reaction.message.id, None)
+        if penalty_data == None:
             return
-        #TODO: Check for all stored messages
+
+        print("Has reacted to a correct message")
+        
+        penalty_instance: PenaltyInstance = penalty_data[0]
+        ctx = penalty_data[2]
+        embed_message_log = penalty_data[1]
+        lb = penalty_data[3]
+        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
+        penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
+        server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
+
+        if str(reaction.emoji) == X_MARK and (user == ctx.author or check_role_list(user, (server_info.admin_roles + server_info.staff_roles))):
+            e_refused = discord.Embed(title="Penalty request refused")
+            e_refused.add_field(name="Request", value=embed_message_log.jump_url)
+            e_refused.add_field(name="Refused by", value=user.mention, inline=False)
+            await updating_log.send(embed=e_refused)
+            
+            del self.request_queue[reaction.message.id]
+            await reaction.message.delete()
+
+        if str(reaction.emoji) == CHECK_BOX and check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
+            penalties_cog = self.bot.get_cog('Penalties')
+            #ctx.author = user
+            ctx.channel = penalty_channel
+            ctx.interaction = None #To remove the automatic reply to first message
+            no_error = True
+            if penalty_instance.penalty_name == "Repick":
+                #Repick automation
+                total_pen_func_call = math.ceil(penalty_instance.total_repick/4)
+                for i in range(total_pen_func_call):
+                    if i == total_pen_func_call-1:
+                        need_strike = penalty_instance.total_repick > 1
+                        no_error = no_error and await penalties_cog.add_penalty(ctx, lb, penalty_instance.amount*(penalty_instance.total_repick-(4*(total_pen_func_call-1))), "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=need_strike, is_request=True)
+                    else:
+                        no_error = no_error and await penalties_cog.add_penalty(ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
+            else:
+                if penalty_instance.penalty_name == "Drop mid mogi":
+                    #Handle setml here
+                    updating_cog = self.bot.get_cog('Updating')
+                    mlraces_args = penalty_instance.player_name + " " + str(penalty_instance.races_played_alone)
+                    await updating_cog.multiplierRaces(ctx, penalty_instance.table_id, extraArgs=mlraces_args)
+
+                no_error = no_error and await penalties_cog.add_penalty(ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.reason, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
+
+            if no_error:
+                e_accepted = discord.Embed(title="Penalty request accepted")
+                e_accepted.add_field(name="Request", value=embed_message_log.jump_url)
+                e_accepted.add_field(name="Accepted by", value=user.mention, inline=False)
+                await updating_log.send(embed=e_accepted)
+            else:
+                e_error = discord.Embed(title="Penalty request error")
+                e_error.add_field(name="Request", value=embed_message_log.jump_url)
+                e_error.add_field(name="Accepted by", value=user.mention, inline=False)
+                await updating_log.send(embed=e_error)
+
+            del self.request_queue[reaction.message.id]
+            await reaction.message.delete()
+            
+
 
     @app_commands.check(app_command_check_reporter_roles)
     @request_group.command(name="penalty")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.autocomplete(penalty_type=penalty_autocomplete)
-    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, repick_number: Optional[RepickSize], reason: Optional[str], leaderboard: Optional[str]):
+    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, repick_number: Optional[RepickSize], races_played_alone: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         repick_number = repick_number.value if repick_number != None else 0
         if penalty_type not in penalty_static_info.keys():
             await ctx.send("This penalty type doesn't exist", ephemeral=True)
-        await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=repick_number, reason=reason)
+        if penalty_type == "Drop mid mogi":
+            if table_id == None:
+                await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
+                return
+            table = await API.get.getTable(lb.website_credentials, table_id)
+            if table is False:
+                await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
+                return
+            if races_played_alone == None:
+                races_played_alone = 0
 
-    @app_commands.check(app_command_check_reporter_roles)
-    @request_group.command(name="loss_reduction")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def append_loss_reduction_slash(self, interaction: discord.Interaction, table_id: int, player_name: str, races_played_alone: int, leaderboard: Optional[str]):
-        ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        if races_played_alone < 0 or races_played_alone > 12:
-            await ctx.send("You entered a wrong number of races")
-            return
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is False:
-            await ctx.send("Table couldn't be found")
-            return
-        await self.add_loss_reduction_to_channel(ctx, lb, table_id, player_name, races_played_alone)
-
+        await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=repick_number, races_played_alone=races_played_alone, table_id=table_id, reason=reason)
 
 async def setup(bot):
     await bot.add_cog(Request(bot))
