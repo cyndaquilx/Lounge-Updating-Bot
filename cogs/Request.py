@@ -14,14 +14,13 @@ from enum import Enum
 import math
 
 class PenaltyInstance:
-    def __init__(self, penalty_name, amount, player_name, total_repick, races_played_alone, table_id, reason, is_strike):
+    def __init__(self, penalty_name, amount, player_name, total_repick, races_played_alone, table_id, is_strike):
         self.penalty_name = penalty_name
         self.amount = amount
         self.player_name = player_name
         self.total_repick = total_repick
         self.races_played_alone = races_played_alone
         self.table_id = table_id
-        self.reason = reason
         self.is_strike = is_strike
 
 penalty_static_info = {
@@ -52,9 +51,6 @@ class Request(commands.Cog):
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
         return choices
 
-    #Enum type to limit command args
-    RepickSize = Enum('RepickSize', [('1', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6), ('7', 7), ('8', 8), ('9', 9), ('10', 10), ('11', 11)])
-
     #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
     async def accept_request(self, staff: discord.User, message_id: int, clean_message=True):
         penalty_data = self.request_queue.get(message_id, None)
@@ -81,13 +77,14 @@ class Request(commands.Cog):
                 else:
                     no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
         else:
-            if penalty_instance.penalty_name == "Drop mid mogi":
+            if penalty_instance.penalty_name == "Drop mid mogi" and penalty_instance.races_played_alone != 0:
                 #Handle setml here
+                initial_ctx.prefix = '!' #Hacky solution, but a working one
                 updating_cog = self.bot.get_cog('Updating')
                 mlraces_args = penalty_instance.player_name + " " + str(penalty_instance.races_played_alone)
                 await updating_cog.multiplierRaces(initial_ctx, penalty_instance.table_id, extraArgs=mlraces_args)
 
-            #no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.reason, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
+            no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
 
         if no_error:
             e_accepted = discord.Embed(title="Penalty request accepted")
@@ -132,7 +129,7 @@ class Request(commands.Cog):
         await embed_message.add_reaction(X_MARK)
 
         penalty_data = penalty_static_info.get(penalty_type)
-        self.request_queue[embed_message.id] = (PenaltyInstance(penalty_type, penalty_data[0], player_name, repick_number, races_played_alone, table_id, reason, penalty_data[1]), embed_message_log, ctx, lb)
+        self.request_queue[embed_message.id] = (PenaltyInstance(penalty_type, penalty_data[0], player_name, repick_number, races_played_alone, table_id, penalty_data[1]), embed_message_log, ctx, lb)
 
 
     #Used to monitor when someone reacts to a request in the penalty channel
@@ -187,7 +184,9 @@ class Request(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         if penalty_type not in penalty_static_info.keys():
             await ctx.send("This penalty type doesn't exist", ephemeral=True)
-        if penalty_type == "Drop mid mogi":
+        if number_of_races == None:
+                number_of_races = 0
+        if penalty_type == "Drop mid mogi" and number_of_races != 0: #If no races have been played alone, no need to have a table_id
             if table_id == None:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
@@ -195,8 +194,10 @@ class Request(commands.Cog):
             if table is False:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
-            if number_of_races == None:
-                number_of_races = 0
+            if number_of_races < 0 or number_of_races > 12:
+                await ctx.send("You entered an invalid number of races", ephemeral=True)
+        if penalty_type == "Repick" and (number_of_races < 0 or number_of_races > 11):
+            await ctx.send("You entered an invalid number of races", ephemeral=True)
 
         await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=number_of_races, races_played_alone=number_of_races, table_id=table_id, reason=reason)
 
