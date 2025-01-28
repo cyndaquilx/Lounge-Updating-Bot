@@ -50,8 +50,6 @@ class Request(commands.Cog):
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
-        for choice in choices:
-            print(choice)
         return choices
 
     #Enum type to limit command args
@@ -156,8 +154,6 @@ class Request(commands.Cog):
         if penalty_data == None:
             return
 
-        print("Has reacted to a correct message")
-        
         embed_message_log = penalty_data[1]
         ctx = penalty_data[2]
         lb = penalty_data[3]
@@ -182,10 +178,13 @@ class Request(commands.Cog):
     @request_group.command(name="penalty")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.autocomplete(penalty_type=penalty_autocomplete)
-    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, repick_number: Optional[RepickSize], races_played_alone: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
+    @app_commands.describe(penalty_type="Type of penalty you want to report someone for",
+            player_name="The player being reported",
+            number_of_races="'Drop mid mogi' penalty: number of races played alone / 'Repick' penalty: number of races repicked",
+            reason="Additional reason you would like to give to the staff")
+    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, number_of_races: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        repick_number = repick_number.value if repick_number != None else 0
         if penalty_type not in penalty_static_info.keys():
             await ctx.send("This penalty type doesn't exist", ephemeral=True)
         if penalty_type == "Drop mid mogi":
@@ -196,10 +195,10 @@ class Request(commands.Cog):
             if table is False:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
-            if races_played_alone == None:
-                races_played_alone = 0
+            if number_of_races == None:
+                number_of_races = 0
 
-        await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=repick_number, races_played_alone=races_played_alone, table_id=table_id, reason=reason)
+        await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=number_of_races, races_played_alone=number_of_races, table_id=table_id, reason=reason)
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['accept_all'])
