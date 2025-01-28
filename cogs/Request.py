@@ -4,7 +4,7 @@ from discord.ext import commands
 
 from util import get_leaderboard_slash
 from models import LeaderboardConfig, ServerConfig
-from custom_checks import app_command_check_reporter_roles, check_role_list
+from custom_checks import app_command_check_reporter_roles, check_role_list, command_check_staff_roles
 import API.get
 import custom_checks
 
@@ -53,6 +53,56 @@ class Request(commands.Cog):
 
     #Enum type to limit command args
     RepickSize = Enum('RepickSize', [('1', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6), ('7', 7), ('8', 8), ('9', 9), ('10', 10), ('11', 11)])
+
+    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
+    async def accept_request(self, staff: discord.User, message_id: int, clean_message=True):
+        penalty_data = self.request_queue.get(message_id, None)
+        if penalty_data == None:
+            return
+        penalty_instance: PenaltyInstance = penalty_data[0]
+        embed_message_log = penalty_data[1]
+        initial_ctx = penalty_data[2]
+        lb = penalty_data[3]
+        updating_log = initial_ctx.guild.get_channel(lb.updating_log_channel)
+        penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
+        
+        penalties_cog = self.bot.get_cog('Penalties')
+        initial_ctx.channel = penalty_channel
+        initial_ctx.interaction = None #To remove the automatic reply to first message
+        no_error = True
+        if penalty_instance.penalty_name == "Repick":
+            #Repick automation
+            total_pen_func_call = math.ceil(penalty_instance.total_repick/4)
+            for i in range(total_pen_func_call):
+                if i == total_pen_func_call-1:
+                    need_strike = penalty_instance.total_repick > 1
+                    no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*(penalty_instance.total_repick-(4*(total_pen_func_call-1))), "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=need_strike, is_request=True)
+                else:
+                    no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
+        else:
+            if penalty_instance.penalty_name == "Drop mid mogi":
+                #Handle setml here
+                updating_cog = self.bot.get_cog('Updating')
+                mlraces_args = penalty_instance.player_name + " " + str(penalty_instance.races_played_alone)
+                await updating_cog.multiplierRaces(initial_ctx, penalty_instance.table_id, extraArgs=mlraces_args)
+
+            #no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.reason, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
+
+        if no_error:
+            e_accepted = discord.Embed(title="Penalty request accepted")
+            e_accepted.add_field(name="Request", value=embed_message_log.jump_url)
+            e_accepted.add_field(name="Accepted by", value=staff.mention, inline=False)
+            await updating_log.send(embed=e_accepted)
+        else:
+            e_error = discord.Embed(title="Penalty request error")
+            e_error.add_field(name="Request", value=embed_message_log.jump_url)
+            e_error.add_field(name="Accepted by", value=staff.mention, inline=False)
+            await updating_log.send(embed=e_error)
+
+        if clean_message:
+            del self.request_queue[message_id]
+        request_message = await penalty_channel.fetch_message(message_id)
+        await request_message.delete()
 
     async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: str, player_name: str, repick_number=0, races_played_alone=0, table_id=0, reason=""):
         e = discord.Embed(title="Penalty request")
@@ -105,12 +155,10 @@ class Request(commands.Cog):
 
         print("Has reacted to a correct message")
         
-        penalty_instance: PenaltyInstance = penalty_data[0]
-        ctx = penalty_data[2]
         embed_message_log = penalty_data[1]
+        ctx = penalty_data[2]
         lb = penalty_data[3]
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-        penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
         server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
 
         if str(reaction.emoji) == X_MARK and (user == ctx.author or check_role_list(user, (server_info.admin_roles + server_info.staff_roles))):
@@ -123,42 +171,7 @@ class Request(commands.Cog):
             await reaction.message.delete()
 
         if str(reaction.emoji) == CHECK_BOX and check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
-            penalties_cog = self.bot.get_cog('Penalties')
-            #ctx.author = user
-            ctx.channel = penalty_channel
-            ctx.interaction = None #To remove the automatic reply to first message
-            no_error = True
-            if penalty_instance.penalty_name == "Repick":
-                #Repick automation
-                total_pen_func_call = math.ceil(penalty_instance.total_repick/4)
-                for i in range(total_pen_func_call):
-                    if i == total_pen_func_call-1:
-                        need_strike = penalty_instance.total_repick > 1
-                        no_error = no_error and await penalties_cog.add_penalty(ctx, lb, penalty_instance.amount*(penalty_instance.total_repick-(4*(total_pen_func_call-1))), "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=need_strike, is_request=True)
-                    else:
-                        no_error = no_error and await penalties_cog.add_penalty(ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
-            else:
-                if penalty_instance.penalty_name == "Drop mid mogi":
-                    #Handle setml here
-                    updating_cog = self.bot.get_cog('Updating')
-                    mlraces_args = penalty_instance.player_name + " " + str(penalty_instance.races_played_alone)
-                    await updating_cog.multiplierRaces(ctx, penalty_instance.table_id, extraArgs=mlraces_args)
-
-                no_error = no_error and await penalties_cog.add_penalty(ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.reason, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
-
-            if no_error:
-                e_accepted = discord.Embed(title="Penalty request accepted")
-                e_accepted.add_field(name="Request", value=embed_message_log.jump_url)
-                e_accepted.add_field(name="Accepted by", value=user.mention, inline=False)
-                await updating_log.send(embed=e_accepted)
-            else:
-                e_error = discord.Embed(title="Penalty request error")
-                e_error.add_field(name="Request", value=embed_message_log.jump_url)
-                e_error.add_field(name="Accepted by", value=user.mention, inline=False)
-                await updating_log.send(embed=e_error)
-
-            del self.request_queue[reaction.message.id]
-            await reaction.message.delete()
+            await self.accept_request(user, reaction.message.id)
             
 
 
@@ -184,6 +197,16 @@ class Request(commands.Cog):
                 races_played_alone = 0
 
         await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=repick_number, races_played_alone=races_played_alone, table_id=table_id, reason=reason)
+
+    @commands.check(command_check_staff_roles)
+    @commands.command(aliases=['accept_all'])
+    async def accept_all_requests(self, ctx: commands.Context):
+        messages_to_clean = []
+        for message_id in self.request_queue.keys():
+            await self.accept_request(ctx.author, message_id, False)
+            messages_to_clean.append(message_id)
+        for id in messages_to_clean:
+            del self.request_queue[id]
 
 async def setup(bot):
     await bot.add_cog(Request(bot))
