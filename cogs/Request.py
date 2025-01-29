@@ -10,7 +10,6 @@ import API.get
 import custom_checks
 
 from typing import Optional
-from enum import Enum
 import math
 
 class PenaltyInstance:
@@ -51,18 +50,26 @@ class Request(commands.Cog):
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
         return choices
 
-    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel, a flag to automatically delete the penalty message at the end
-    async def accept_request(self, staff: discord.User, message_id: int, clean_message=True):
+    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
+    async def accept_request(self, staff: discord.User, message_id: int):
+
         penalty_data = self.request_queue.get(message_id, None)
         if penalty_data == None:
-            return f"Unregistered request with message id {message_id}" #Should never happen
+            return f"Unregistered request with message id {message_id}" #Indicate that the request has already been processed
 
         penalty_instance: PenaltyInstance = penalty_data[0]
         embed_message_log = penalty_data[1]
         initial_ctx = penalty_data[2]
         lb = penalty_data[3]
-        updating_log = initial_ctx.guild.get_channel(lb.updating_log_channel)
         penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
+
+        #To catch error due to event listener or commands
+        try:
+            del self.request_queue[message_id]
+            request_message = await penalty_channel.fetch_message(message_id)
+            await request_message.delete()
+        except:
+            return "Request already handled" + embed_message_log.jump_url
         
         penalties_cog = self.bot.get_cog('Penalties')
         initial_ctx.channel = penalty_channel
@@ -107,11 +114,6 @@ class Request(commands.Cog):
             edited_embed.add_field(name="Penalty ID(s)", value=id_string, inline=False)
         
         await embed_message_log.edit(embed=edited_embed)
-
-        if clean_message:
-            del self.request_queue[message_id]
-        request_message = await penalty_channel.fetch_message(message_id)
-        await request_message.delete()
 
         return_message = edited_embed.title + f": {embed_message_log.jump_url}"
         return_message if id_string == "" else return_message + " ID(s): " + id_string
@@ -168,18 +170,20 @@ class Request(commands.Cog):
 
         embed_message_log = penalty_data[1]
         ctx = penalty_data[2]
-        lb = penalty_data[3]
-        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
 
         if str(reaction.emoji) == X_MARK and (user == ctx.author or check_role_list(user, (server_info.admin_roles + server_info.staff_roles))):
+            #To catch error due to event listener or commands
+            try:
+                del self.request_queue[reaction.message.id]
+                await reaction.message.delete()
+            except:
+                return
+            
             edited_embed = embed_message_log.embeds[0]
             edited_embed.title="Penalty request refused"
             edited_embed.add_field(name="Refused by", value=user.mention, inline=False)
             await embed_message_log.edit(embed=edited_embed)
-            
-            del self.request_queue[reaction.message.id]
-            await reaction.message.delete()
 
         if str(reaction.emoji) == CHECK_BOX and check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
             await self.accept_request(user, reaction.message.id)
@@ -219,21 +223,15 @@ class Request(commands.Cog):
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['accept_all'])
     async def accept_all_requests(self, ctx: commands.Context):
-        messages_to_clean = []
         request_copy = list(self.request_queue.keys())
         remaining_requests = len(request_copy)
         remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
         
         for message_id in request_copy:
-            await ctx.send(await self.accept_request(ctx.author, message_id, False))
-            messages_to_clean.append(message_id)
+            await ctx.send(await self.accept_request(ctx.author, message_id))
             remaining_requests -= 1
             await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
         
-        for id in messages_to_clean:
-            if id in self.request_queue.keys():
-                del self.request_queue[id]
-
         await remaining_message.delete()
         await ctx.send("All requests have been accepted.")
 
