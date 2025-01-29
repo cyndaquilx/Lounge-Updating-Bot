@@ -51,11 +51,12 @@ class Request(commands.Cog):
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
         return choices
 
-    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
+    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel, a flag to automatically delete the penalty message at the end
     async def accept_request(self, staff: discord.User, message_id: int, clean_message=True):
         penalty_data = self.request_queue.get(message_id, None)
         if penalty_data == None:
-            return
+            return f"Unregistered request with message id {message_id}" #Should never happen
+
         penalty_instance: PenaltyInstance = penalty_data[0]
         embed_message_log = penalty_data[1]
         initial_ctx = penalty_data[2]
@@ -67,6 +68,7 @@ class Request(commands.Cog):
         initial_ctx.channel = penalty_channel
         initial_ctx.interaction = None #To remove the automatic reply to first message
         id_result = []
+        ml_error_string = ""
         if penalty_instance.penalty_name == "Repick":
             #Repick automation
             total_pen_func_call = math.ceil(penalty_instance.total_repick/4)
@@ -77,22 +79,24 @@ class Request(commands.Cog):
                 else:
                     id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
         else:
-            if penalty_instance.penalty_name == "Drop mid mogi" and penalty_instance.races_played_alone != 0:
+            if penalty_instance.penalty_name == "Drop mid mogi" and penalty_instance.races_played_alone >= 3:
                 #Handle setml here
                 initial_ctx.prefix = '!' #Hacky solution, but a working one
                 updating_cog = self.bot.get_cog('Updating')
                 mlraces_args = penalty_instance.player_name + " " + str(penalty_instance.races_played_alone)
-                await updating_cog.multiplierRaces(initial_ctx, penalty_instance.table_id, extraArgs=mlraces_args)
+                ml_error_string = await updating_cog.multiplierRaces(initial_ctx, penalty_instance.table_id, extraArgs=mlraces_args)
 
             id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
 
         e_result = discord.Embed()
-        if None not in id_result:
+        e_result.add_field(name="Request", value=embed_message_log.jump_url)
+        e_result.add_field(name="Accepted by", value=staff.mention, inline=False)
+        if None not in id_result and ml_error_string == "":
             e_result.title="Penalty request accepted"
         else:
             e_result.title="Penalty request error"
-        e_result.add_field(name="Request", value=embed_message_log.jump_url)
-        e_result.add_field(name="Accepted by", value=staff.mention, inline=False)
+            if ml_error_string != "":
+                e_result.add_field(name="Error", value=ml_error_string)
 
         id_string = ""
         for index, id in enumerate(id_result):
@@ -102,15 +106,20 @@ class Request(commands.Cog):
                 id_string += str(id)
         if id_string != "":
             e_result.add_field(name="Penalty ID(s)", value=id_string, inline=False)
-        await updating_log.send(embed=e_result)
-
-        new_embed = embed_message_log.embeds[0].add_field(name="Penalty ID(s)", value=id_string)
-        await embed_message_log.edit(embed=new_embed)
+            
+            new_embed = embed_message_log.embeds[0].add_field(name="Penalty ID(s)", value=id_string)
+            await embed_message_log.edit(embed=new_embed)
+        
+        updating_log_result_message = await updating_log.send(embed=e_result)
 
         if clean_message:
             del self.request_queue[message_id]
         request_message = await penalty_channel.fetch_message(message_id)
         await request_message.delete()
+
+        return_message = e_result.title + f": {updating_log_result_message.jump_url}"
+        return_message if id_string == "" else return_message + " ID(s): " + id_string
+        return return_message
 
     async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: str, player_name: str, repick_number=0, races_played_alone=0, table_id=0, reason=""):
         e = discord.Embed(title="Penalty request")
@@ -128,7 +137,7 @@ class Request(commands.Cog):
                 
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if penalty_type == "Drop mid mogi":
-            e.add_field(name="Number of races with missing teammate", value=races_played_alone)
+            e.add_field(name="Number of races with missing a teammate", value=races_played_alone)
         e.add_field(name="Requested by", value=ctx.author, inline=False)
         embed_message_log = await updating_log.send(embed=e)
 
@@ -196,7 +205,7 @@ class Request(commands.Cog):
             await ctx.send("This penalty type doesn't exist", ephemeral=True)
         if number_of_races == None:
                 number_of_races = 0
-        if penalty_type == "Drop mid mogi" and number_of_races != 0: #If no races have been played alone, no need to have a table_id
+        if penalty_type == "Drop mid mogi" and number_of_races >= 3: #If the number of races is not sufficient for a reduction loss, no need to have a table_id
             if table_id == None:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
@@ -215,11 +224,21 @@ class Request(commands.Cog):
     @commands.command(aliases=['accept_all'])
     async def accept_all_requests(self, ctx: commands.Context):
         messages_to_clean = []
-        for message_id in self.request_queue.keys():
-            await self.accept_request(ctx.author, message_id, False)
+        request_copy = list(self.request_queue.keys())
+        remaining_requests = len(request_copy)
+        remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
+        
+        for message_id in request_copy:
+            await ctx.send(await self.accept_request(ctx.author, message_id, False))
             messages_to_clean.append(message_id)
+            --remaining_requests
+            await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
+        
         for id in messages_to_clean:
             del self.request_queue[id]
+
+        await remaining_message.delete()
+        await ctx.send("All requests have been accepted.")
 
 async def setup(bot):
     await bot.add_cog(Request(bot))
