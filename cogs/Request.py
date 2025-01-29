@@ -66,16 +66,16 @@ class Request(commands.Cog):
         penalties_cog = self.bot.get_cog('Penalties')
         initial_ctx.channel = penalty_channel
         initial_ctx.interaction = None #To remove the automatic reply to first message
-        no_error = True
+        id_result = []
         if penalty_instance.penalty_name == "Repick":
             #Repick automation
             total_pen_func_call = math.ceil(penalty_instance.total_repick/4)
             for i in range(total_pen_func_call):
                 if i == total_pen_func_call-1:
                     need_strike = penalty_instance.total_repick > 1
-                    no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*(penalty_instance.total_repick-(4*(total_pen_func_call-1))), "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=need_strike, is_request=True)
+                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*(penalty_instance.total_repick-(4*(total_pen_func_call-1))), "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=need_strike, is_request=True)
                 else:
-                    no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
+                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*4, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
         else:
             if penalty_instance.penalty_name == "Drop mid mogi" and penalty_instance.races_played_alone != 0:
                 #Handle setml here
@@ -84,18 +84,28 @@ class Request(commands.Cog):
                 mlraces_args = penalty_instance.player_name + " " + str(penalty_instance.races_played_alone)
                 await updating_cog.multiplierRaces(initial_ctx, penalty_instance.table_id, extraArgs=mlraces_args)
 
-            no_error = no_error and await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
+            id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
 
-        if no_error:
-            e_accepted = discord.Embed(title="Penalty request accepted")
-            e_accepted.add_field(name="Request", value=embed_message_log.jump_url)
-            e_accepted.add_field(name="Accepted by", value=staff.mention, inline=False)
-            await updating_log.send(embed=e_accepted)
+        e_result = discord.Embed()
+        if None not in id_result:
+            e_result.title="Penalty request accepted"
         else:
-            e_error = discord.Embed(title="Penalty request error")
-            e_error.add_field(name="Request", value=embed_message_log.jump_url)
-            e_error.add_field(name="Accepted by", value=staff.mention, inline=False)
-            await updating_log.send(embed=e_error)
+            e_result.title="Penalty request error"
+        e_result.add_field(name="Request", value=embed_message_log.jump_url)
+        e_result.add_field(name="Accepted by", value=staff.mention, inline=False)
+
+        id_string = ""
+        for index, id in enumerate(id_result):
+            if id != None:
+                if index != 0:
+                    id_string += " / "
+                id_string += str(id)
+        if id_string != "":
+            e_result.add_field(name="Penalty ID(s)", value=id_string, inline=False)
+        await updating_log.send(embed=e_result)
+
+        new_embed = embed_message_log.embeds[0].add_field(name="Penalty ID(s)", value=id_string)
+        await embed_message_log.edit(embed=new_embed)
 
         if clean_message:
             del self.request_queue[message_id]
