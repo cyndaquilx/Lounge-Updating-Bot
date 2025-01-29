@@ -88,15 +88,14 @@ class Request(commands.Cog):
 
             id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [penalty_instance.player_name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
 
-        e_result = discord.Embed()
-        e_result.add_field(name="Request", value=embed_message_log.jump_url)
-        e_result.add_field(name="Accepted by", value=staff.mention, inline=False)
+        edited_embed = embed_message_log.embeds[0]
+        edited_embed.add_field(name="Accepted by", value=staff.mention, inline=False)
         if None not in id_result and ml_error_string == "":
-            e_result.title="Penalty request accepted"
+            edited_embed.title="Penalty request accepted"
         else:
-            e_result.title="Penalty request error"
+            edited_embed.title="Penalty request error"
             if ml_error_string != "":
-                e_result.add_field(name="Error", value=ml_error_string)
+                edited_embed.add_field(name="Error", value=ml_error_string)
 
         id_string = ""
         for index, id in enumerate(id_result):
@@ -105,19 +104,16 @@ class Request(commands.Cog):
                     id_string += " / "
                 id_string += str(id)
         if id_string != "":
-            e_result.add_field(name="Penalty ID(s)", value=id_string, inline=False)
-            
-            new_embed = embed_message_log.embeds[0].add_field(name="Penalty ID(s)", value=id_string)
-            await embed_message_log.edit(embed=new_embed)
+            edited_embed.add_field(name="Penalty ID(s)", value=id_string, inline=False)
         
-        updating_log_result_message = await updating_log.send(embed=e_result)
+        await embed_message_log.edit(embed=edited_embed)
 
         if clean_message:
             del self.request_queue[message_id]
         request_message = await penalty_channel.fetch_message(message_id)
         await request_message.delete()
 
-        return_message = e_result.title + f": {updating_log_result_message.jump_url}"
+        return_message = edited_embed.title + f": {embed_message_log.jump_url}"
         return_message if id_string == "" else return_message + " ID(s): " + id_string
         return return_message
 
@@ -177,10 +173,10 @@ class Request(commands.Cog):
         server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
 
         if str(reaction.emoji) == X_MARK and (user == ctx.author or check_role_list(user, (server_info.admin_roles + server_info.staff_roles))):
-            e_refused = discord.Embed(title="Penalty request refused")
-            e_refused.add_field(name="Request", value=embed_message_log.jump_url)
-            e_refused.add_field(name="Refused by", value=user.mention, inline=False)
-            await updating_log.send(embed=e_refused)
+            edited_embed = embed_message_log.embeds[0]
+            edited_embed.title="Penalty request refused"
+            edited_embed.add_field(name="Refused by", value=user.mention, inline=False)
+            await embed_message_log.edit(embed=edited_embed)
             
             del self.request_queue[reaction.message.id]
             await reaction.message.delete()
@@ -231,11 +227,12 @@ class Request(commands.Cog):
         for message_id in request_copy:
             await ctx.send(await self.accept_request(ctx.author, message_id, False))
             messages_to_clean.append(message_id)
-            --remaining_requests
+            remaining_requests -= 1
             await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
         
         for id in messages_to_clean:
-            del self.request_queue[id]
+            if id in self.request_queue.keys():
+                del self.request_queue[id]
 
         await remaining_message.delete()
         await ctx.send("All requests have been accepted.")
