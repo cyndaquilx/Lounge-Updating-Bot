@@ -47,6 +47,16 @@ async def getPlayerFromMKC(credentials: WebsiteCredentials, mkc_id: int):
             body = await resp.json()
             player = Player.from_api_response(body)
             return player
+
+async def getPlayerFromLounge(credentials: WebsiteCredentials, lounge_id: int):
+    request_url = f"{credentials.url}/api/player?id={lounge_id}"
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.get(request_url,headers=headers) as resp:
+            if resp.status != 200:
+                return None
+            body = await resp.json()
+            player = Player.from_api_response(body)
+            return player
         
 async def getPlayerFromDiscord(credentials: WebsiteCredentials, discord_id):
     request_url = f"{credentials.url}/api/player?discordId={discord_id}"
