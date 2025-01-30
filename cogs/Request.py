@@ -83,13 +83,11 @@ class Request(commands.Cog):
         ml_error_string = ""
         if penalty_instance.penalty_name == "Repick":
             #Repick automation
-            total_pen_func_call = math.ceil(penalty_instance.total_repick/4)
-            for i in range(total_pen_func_call):
-                if i == total_pen_func_call-1:
-                    need_strike = penalty_instance.total_repick > 1
-                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*(penalty_instance.total_repick-(4*(total_pen_func_call-1))), "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=need_strike, is_request=True)
+            for i in range(penalty_instance.total_repick):
+                if i == 0:
+                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
                 else:
-                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount*4, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
+                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=True, is_request=True)
         else:
             if penalty_instance.penalty_name == "Drop mid mogi" and penalty_instance.races_played_alone >= 3:
                 #Handle setml here
