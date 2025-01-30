@@ -121,7 +121,7 @@ class Request(commands.Cog):
         await embed_message_log.edit(embed=edited_embed)
 
         return_message = edited_embed.title + f": {embed_message_log.jump_url}"
-        return_message if id_string == "" else return_message + " ID(s): " + id_string
+        return_message = return_message if id_string == "" else return_message + " ID(s): " + id_string
         return return_message
 
     async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: str, player_name: str, repick_number=0, races_played_alone=0, table_id=0, reason=""):
