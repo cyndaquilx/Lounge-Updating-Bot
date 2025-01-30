@@ -63,7 +63,7 @@ class Request(commands.Cog):
         lb = penalty_data[3]
         penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
 
-        #To catch error due to event listener or commands
+        #To catch error due to event listener or other commands
         try:
             del self.request_queue[message_id]
             request_message = await penalty_channel.fetch_message(message_id)
@@ -152,8 +152,11 @@ class Request(commands.Cog):
 
         await ctx.send(f"Penalty request issued for player {player_name}. Reason: {penalty_type}\nLink to request: {embed_message.jump_url}", ephemeral=True)
 
-        await embed_message.add_reaction(CHECK_BOX)
-        await embed_message.add_reaction(X_MARK)
+        try:
+            await embed_message.add_reaction(CHECK_BOX)
+            await embed_message.add_reaction(X_MARK)
+        except:
+            pass
 
         penalty_data = penalty_static_info.get(penalty_type)
         self.request_queue[embed_message.id] = (PenaltyInstance(penalty_type, penalty_data[0], player.id, repick_number, races_played_alone, table_id, penalty_data[1]), embed_message_log, ctx, lb)
@@ -242,7 +245,10 @@ class Request(commands.Cog):
             remaining_requests -= 1
             await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
         
-        await remaining_message.delete()
+        try:
+            await remaining_message.delete()
+        except:
+            pass
         await ctx.send("All requests have been accepted.")
 
 async def setup(bot):
