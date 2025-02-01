@@ -6,6 +6,7 @@ class CustomTranslator(app_commands.Translator):
 
     #EN -> (JP, FR, ES)
     en_to_others = {
+        #--------------Penalty type--------------
         "Late": (None, "Retard", None),
         "Drop mid mogi": (None, "Drop durant le mogi", None),
         "Drop before start": (None, "Drop avant le début du mogi", None),
@@ -13,8 +14,12 @@ class CustomTranslator(app_commands.Translator):
         "Repick": (None, "Repeat", None),
         "No video proof": (None, "Pas de preuve vidéo", None),
         "Host issues": (None, "Problème de host", None),
-        "Host carelessness prevents a table from being made": (None, None, None),
         "No host": (None, "Pas de host", None),
+        #--------------Penalty description--------------
+        "Type of penalty you want to report someone for": (None, "Type de pénalité pour laquelle vous voulez report quelqu'un", None),
+        "The player being reported": (None, "Le joueur que vous voulez report", None),
+        "'Drop mid mogi': number of races played alone / 'Repick': number of races repicked": (None, "'Drop durant le mogi': nombre de courses jouées seul / 'Repeat': nombre de courses repeat", None),
+        "Additional reason you would like to give to the staff": (None, "Indication supplémentaire que vous voulez donner au staff", None)
     }
 
     async def load(self):

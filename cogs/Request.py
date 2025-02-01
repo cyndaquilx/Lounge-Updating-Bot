@@ -30,7 +30,6 @@ penalty_static_info = {
     "Repick": (50, False),
     "No video proof": (50, True),
     "Host issues": (50, True),
-    "Host carelessness prevents a table from being made": (100, True),
     "No host": (50, True)
 }
 
@@ -207,7 +206,7 @@ class Request(commands.Cog):
     @app_commands.autocomplete(penalty_type=penalty_autocomplete)
     @app_commands.describe(penalty_type="Type of penalty you want to report someone for",
             player_name="The player being reported",
-            number_of_races="'Drop mid mogi' penalty: number of races played alone / 'Repick' penalty: number of races repicked",
+            number_of_races="'Drop mid mogi': number of races played alone / 'Repick': number of races repicked",
             reason="Additional reason you would like to give to the staff")
     async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, number_of_races: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
