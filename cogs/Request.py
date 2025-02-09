@@ -10,7 +10,6 @@ import API.get
 import custom_checks
 
 from typing import Optional
-import math
 
 class PenaltyInstance:
     def __init__(self, penalty_name, amount, lounge_id, total_repick, races_played_alone, table_id, is_strike):
@@ -207,7 +206,7 @@ class Request(commands.Cog):
     @app_commands.describe(penalty_type="Type of penalty you want to report someone for",
             player_name="The player being reported",
             number_of_races="'Drop mid mogi': number of races played alone / 'Repick': number of races repicked",
-            reason="Additional reason you would like to give to the staff")
+            reason="Additional information you would like to give to the staff")
     async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, number_of_races: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
