@@ -47,6 +47,7 @@
                     "races_per_mogi": 12,
                     "gps_per_mogi": 1,
                     "enable_verification_dms": true,
+                    "enable_bulk_placement_endpoint": false,
                     "valid_formats": [
                         1,
                         2,
@@ -286,6 +287,7 @@
                     "races_per_mogi": 12,
                     "gps_per_mogi": 1,
                     "enable_verification_dms": true,
+                    "enable_bulk_placement_endpoint": false,
                     "valid_formats": [
                         1,
                         2,
@@ -523,6 +525,7 @@
                     "races_per_mogi": 12,
                     "gps_per_mogi": 3,
                     "enable_verification_dms": false,
+                    "enable_bulk_placement_endpoint": false,
                     "valid_formats": [
                         1,
                         2,
