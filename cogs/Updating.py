@@ -173,7 +173,7 @@ class Updating(commands.Cog):
         table = await API.get.getTable(lb.website_credentials, table_id)
         if table is False:
             await ctx.send("Table couldn't be found")
-            return
+            return "Table not found"
         workmsg = await ctx.send("Working...")
         race_args = extraArgs.split(",")
         missed_races = {}
@@ -186,24 +186,24 @@ class Updating(commands.Cog):
                 player_races = split_arg[-1].strip()
                 if not player_races.isdigit():
                     await workmsg.edit(content=f"{player_races} is not an integer between {min_missed_races}-12")
-                    return
+                    return "Wrong number of race"
                 player_races_int = int(player_races)
                 if player_races_int < min_missed_races:
                     await workmsg.edit(content=f"The minimum number of races to be missed for increased loss is f{min_missed_races}")
-                    return
+                    return "Wrong number of race"
                 if player_name.isdigit():
                     player_name = table.get_score_from_discord(int(player_name)).player.name
                 missed_races[player_name] = player_races_int
         if len(missed_races) == 0:
             await ctx.send("No valid arguments found")
-            return
+            return "Wrong number of arguments for mlraces function"
         
         multipliers = {}
         for player, races in missed_races.items():
             team = table.get_team(player)
             if team is None:
                 await workmsg.edit(content=f"{player} not found on table ID {table_id}!")
-                return
+                return "Player not found on table"
             if races >= no_loss_races:
                 mult = 0
             else:
@@ -215,10 +215,11 @@ class Updating(commands.Cog):
         updatedMultipliers = await API.post.setMultipliers(lb.website_credentials, table_id, multipliers)
         if updatedMultipliers is not True:
             await workmsg.edit(content=f"Error setting multipliers:\n{updatedMultipliers}")
-            return
+            return "Error setting multipliers"
         
         mult_msg = "\n".join([f"{player}: {mult:.2f}" for player, mult in multipliers.items()])
         await workmsg.edit(content=f"Set the following multipliers:\n{mult_msg}")
+        return ""
             
     async def update_table(self, ctx: commands.Context, lb: LeaderboardConfig, table_id:int, *, extraArgs=""):
         table = await API.get.getTable(lb.website_credentials, table_id)
