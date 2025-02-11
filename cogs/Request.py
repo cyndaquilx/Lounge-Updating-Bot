@@ -212,6 +212,7 @@ class Request(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         if penalty_type not in penalty_static_info.keys():
             await ctx.send("This penalty type doesn't exist", ephemeral=True)
+            return
         if number_of_races == None:
                 if penalty_type == "Repick":
                     number_of_races = 1
