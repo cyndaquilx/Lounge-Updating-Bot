@@ -132,6 +132,8 @@ class Request(commands.Cog):
         e.add_field(name="Penalty type", value=penalty_type)
         if penalty_type == "Repick":
             e.add_field(name="Number of repick", value=repick_number)
+        if penalty_type == "Drop mid mogi":
+            e.add_field(name="Number of races with a missing teammate", value=races_played_alone)
         e.add_field(name="Issued from", value=ctx.channel.mention)
         if table_id != 0 and table_id != None:
             e.add_field(name="Table ID", value=table_id)
@@ -141,9 +143,7 @@ class Request(commands.Cog):
         embed_message = await penalty_channel.send(embed=e)
                 
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-        if penalty_type == "Drop mid mogi":
-            e.add_field(name="Number of races with missing a teammate", value=races_played_alone)
-        e.add_field(name="Requested by", value=ctx.author, inline=False)
+        e.add_field(name="Requested by", value=ctx.author.mention, inline=False)
         embed_message_log = await updating_log.send(embed=e)
 
         await ctx.send(f"Penalty request issued for player {player_name}. Reason: {penalty_type}\nLink to request: {embed_message.jump_url}", ephemeral=True)
@@ -213,7 +213,10 @@ class Request(commands.Cog):
         if penalty_type not in penalty_static_info.keys():
             await ctx.send("This penalty type doesn't exist", ephemeral=True)
         if number_of_races == None:
-                number_of_races = 0
+                if penalty_type == "Repick":
+                    number_of_races = 1
+                else:
+                    number_of_races = 0
         if penalty_type == "Drop mid mogi" and number_of_races >= 3: #If the number of races is not sufficient for a reduction loss, no need to have a table_id
             if table_id == None:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
@@ -224,9 +227,10 @@ class Request(commands.Cog):
                 return
             if number_of_races < 0 or number_of_races > 12:
                 await ctx.send("You entered an invalid number of races", ephemeral=True)
-        if penalty_type == "Repick" and (number_of_races < 0 or number_of_races > 11):
+                return
+        if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
             await ctx.send("You entered an invalid number of races", ephemeral=True)
-
+            return
         await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=number_of_races, races_played_alone=number_of_races, table_id=table_id, reason=reason)
 
     @commands.check(command_check_staff_roles)
