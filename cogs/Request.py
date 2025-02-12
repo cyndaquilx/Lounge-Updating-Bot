@@ -105,6 +105,7 @@ class Request(commands.Cog):
         penalties_cog = self.bot.get_cog('Penalties')
         initial_ctx.channel = penalty_channel
         initial_ctx.interaction = None #To remove the automatic reply to first message
+        initial_ctx.author = staff #The penalties and multipliers will be shown as applied by the staff that accepted the request and not the person that requested it
         id_result = []
         ml_error_string = ""
         if penalty_instance.penalty_name == "Repick":
@@ -266,7 +267,7 @@ class Request(commands.Cog):
             penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
             request_message = await penalty_channel.fetch_message(message_id)
 
-            current_line = penalty_instance.penalty_name + " for player " + str(penalty_instance.discord_id) + f" {request_message.jump_url}\n"
+            current_line = penalty_instance.penalty_name + " for player with discord ID " + str(penalty_instance.discord_id) + f" {request_message.jump_url}\n"
             if len(result_string) + len(current_line) > 2000:
                     await ctx.send(result_string)
                     result_string = ""
