@@ -28,6 +28,11 @@ class CustomTranslator(app_commands.Translator):
             "Pénalité de tag",
             "Penalización por tag",
             "Bestrafung für den falschen Tag"),
+        "FFA name violation":
+            (None,
+            "Nom incorrect en FFA",
+            None,
+            None),
         "Repick":
             ("リピック",
             "Repeat",
