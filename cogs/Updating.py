@@ -189,7 +189,7 @@ class Updating(commands.Cog):
                     return "Wrong number of race"
                 player_races_int = int(player_races)
                 if player_races_int < min_missed_races:
-                    await workmsg.edit(content=f"The minimum number of races to be missed for increased loss is f{min_missed_races}")
+                    await workmsg.edit(content=f"The minimum number of races to be missed for increased loss is {min_missed_races}")
                     return "Wrong number of race"
                 if player_name.isdigit():
                     player_name = table.get_score_from_discord(int(player_name)).player.name
