@@ -27,6 +27,7 @@ penalty_static_info = {
     "Drop mid mogi": (50, True),
     "Drop before start": (100, True),
     "Tag penalty": (50, False),
+    "FFA name violation": (50, False),
     "Repick": (50, False),
     "No video proof": (50, True),
     "Host issues": (50, True),
