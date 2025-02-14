@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
-from util import get_leaderboard_slash
+from util import get_leaderboard_slash, get_leaderboard
 from models import LeaderboardConfig, ServerConfig
 from custom_checks import app_command_check_reporter_roles, check_role_list, command_check_staff_roles
 import API.get
@@ -46,6 +46,13 @@ class Request(commands.Cog):
 
     #Dictionary containing: message ID -> (penalty instance, request log, context, leaderboardconfig)
     request_queue = {}
+
+    def get_request_from_lb(self, queue, lb: LeaderboardConfig):
+        new_dict = {}
+        for key, value in queue.items():
+            if value[3] == lb:
+                new_dict[key] = value
+        return new_dict
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
@@ -261,9 +268,10 @@ class Request(commands.Cog):
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['pending_requests'])
     async def pending_requests_command(self, ctx: commands.Context):
-        request_copy = dict(self.request_queue)
+        lb = get_leaderboard(ctx)
+        request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
         if len(request_copy) == 0:
-            await ctx.send("There is no pending request")
+            await ctx.send("There are no pending requests")
             return
         result_string = ""
         for message_id, penalty_data in request_copy.items():
@@ -285,29 +293,38 @@ class Request(commands.Cog):
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['accept'])
     async def accept_request_command(self, ctx: commands.Context, messageid: int):
+        lb = get_leaderboard(ctx)
         request_data = self.request_queue.get(messageid, None)
         if request_data == None:
             await ctx.send(f"The request with message id {messageid} doesn't exist.")
         else:
-            await ctx.send(await self.accept_request(ctx.author, messageid))
+            if request_data[3] != lb:
+                await ctx.send("You are trying to access a request from another leaderboard.")
+            else:
+                await ctx.send(await self.accept_request(ctx.author, messageid))
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['refuse'])
     async def refuse_request_command(self, ctx: commands.Context, messageid: int):
+        lb = get_leaderboard(ctx)
         request_data = self.request_queue.get(messageid, None)
         if request_data == None:
             await ctx.send(f"The request with message id {messageid} doesn't exist.")
         else:
-            await ctx.send(await self.refuse_request(ctx.author, messageid))
+            if request_data[3] != lb:
+                await ctx.send("You are trying to access a request from another leaderboard.")
+            else:
+                await ctx.send(await self.refuse_request(ctx.author, messageid))
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['accept_all'])
     async def accept_all_requests(self, ctx: commands.Context):
-        request_copy = list(self.request_queue.keys())
+        lb = get_leaderboard(ctx)
+        request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
         remaining_requests = len(request_copy)
         remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
         
-        for message_id in request_copy:
+        for message_id in request_copy.keys():
             await ctx.send(await self.accept_request(ctx.author, message_id))
             remaining_requests -= 1
             await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
