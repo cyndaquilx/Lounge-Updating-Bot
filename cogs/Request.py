@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord.app_commands import locale_str
 
+from util.Translator import CustomTranslator
 from util import get_leaderboard_slash
 from models import LeaderboardConfig, ServerConfig
 from custom_checks import app_command_check_reporter_roles, check_role_list, command_check_staff_roles
@@ -229,8 +230,13 @@ class Request(commands.Cog):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         if penalty_type not in penalty_static_info.keys():
-            await ctx.send("This penalty type doesn't exist", ephemeral=True)
-            return
+            #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
+            translation = CustomTranslator().translation_reverse_check(penalty_type)
+            if translation != None and translation in penalty_static_info.keys():
+                penalty_type = translation
+            else:
+                await ctx.send("This penalty type doesn't exist", ephemeral=True)
+                return
         if number_of_races == None:
                 if penalty_type == "Repick":
                     number_of_races = 1

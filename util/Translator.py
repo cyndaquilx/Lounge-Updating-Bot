@@ -76,6 +76,13 @@ class CustomTranslator(app_commands.Translator):
             "Zusätzliche Informationen, die Sie dem Staff mitteilen möchten")
     }
 
+    def translation_reverse_check(self, string: str):
+        for key, value in self.en_to_others.items():
+            for translation in value:
+                if string == translation:
+                    return key
+        return None
+
     async def load(self):
         return
     
