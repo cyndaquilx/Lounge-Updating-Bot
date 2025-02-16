@@ -18,6 +18,11 @@ class CustomTranslator(app_commands.Translator):
             "Drop durant le mogi",
             "Abandono de medio mogi",
             "Verlassen während des Mogi"),
+        "3+ dcs":
+            ("3+ dcs",
+            "3+ dcs",
+            "3+ dcs",
+            "3+ dcs"),
         "Drop before start":
             ("模擬開始前のドロップ",
             "Drop avant le début du mogi",

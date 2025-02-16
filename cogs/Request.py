@@ -6,7 +6,7 @@ from discord.app_commands import locale_str
 from util.Translator import CustomTranslator
 from util import get_leaderboard_slash, get_leaderboard, set_multipliers
 from models import LeaderboardConfig, ServerConfig
-from custom_checks import app_command_check_reporter_roles, check_role_list, command_check_staff_roles
+from custom_checks import app_command_check_reporter_roles, app_command_check_staff_roles, check_role_list, command_check_staff_roles
 import API.get
 import custom_checks
 
@@ -122,6 +122,7 @@ class DropMidMogiInstance(PenaltyInstance):
 penalty_static_info = {
     "Late": (50, True),
     "Drop mid mogi": (50, True),
+    "3+ dcs": (50, True),
     "Drop before start": (100, True),
     "Tag penalty": (50, False),
     "FFA name violation": (50, False),
@@ -138,7 +139,7 @@ class Request(commands.Cog):
     def __init__ (self, bot):
         self.bot = bot
 
-    request_group = app_commands.Group(name="request", description="Requests to staff")
+    #request_group = app_commands.Group(name="request", description="Requests to staff")
 
     #Dictionary containing: message ID -> (penalty instance, request log, context, leaderboardconfig)
     request_queue = {}
@@ -276,9 +277,8 @@ class Request(commands.Cog):
             await self.accept_request(user, reaction.message.id)
             
 
-
     @app_commands.check(app_command_check_reporter_roles)
-    @request_group.command(name="penalty")
+    @app_commands.command(name="request_penalty")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.autocomplete(penalty_type=penalty_autocomplete)
     @app_commands.describe(penalty_type="Type of penalty you want to report someone for",
@@ -304,14 +304,17 @@ class Request(commands.Cog):
         if number_of_races < 0 or number_of_races > 12:
             await ctx.send("You entered an invalid number of races", ephemeral=True)
             return
-        if penalty_type == "Drop mid mogi" and number_of_races >= 3: #If the number of races is not sufficient for a reduction loss, no need to have a table_id
+        if penalty_type == "Drop mid mogi" and number_of_races >= 3 or penalty_type == "3+ dcs": #If the number of races is not sufficient for a reduction loss, no need to have a table_id
             if table_id == None:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
             table = await API.get.getTable(lb.website_credentials, table_id)
             if table is False:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
-                return 
+                return
+        if penalty_type == "3+ dcs" and number_of_races < 4:
+            await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"num_races\".", ephemeral=True)
+            return
         if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
             await ctx.send("You entered an invalid number of races", ephemeral=True)
             return
@@ -323,7 +326,7 @@ class Request(commands.Cog):
         #Create penalty, create embed, send embed, add penalty to queue
         penalty = None
         penalty_data = penalty_static_info.get(penalty_type)
-        if penalty_type == "Drop mid mogi":
+        if penalty_type == "Drop mid mogi" or penalty_type == "3+ dcs":
             penalty = DropMidMogiInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
         elif penalty_type == "Repick":
             penalty = RepickInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
@@ -343,10 +346,7 @@ class Request(commands.Cog):
 
         self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)
 
-    @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['pending_requests'])
-    async def pending_requests_command(self, ctx: commands.Context):
-        lb = get_leaderboard(ctx)
+    async def pending_requests(self, ctx: commands.Context, lb: LeaderboardConfig):
         request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
         if len(request_copy) == 0:
             await ctx.send("There are no pending requests")
@@ -369,35 +369,68 @@ class Request(commands.Cog):
             await ctx.send(result_string)
 
     @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['accept'])
-    async def accept_request_command(self, ctx: commands.Context, messageid: int):
+    @commands.command(aliases=['pending_penalties'])
+    async def pending_requests_command(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
-        request_data = self.request_queue.get(messageid, None)
+        await self.pending_requests(ctx, lb)
+
+    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.command(name='pending_penalties')
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def pending_requests_command_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        await self.pending_requests(ctx, lb)
+
+    async def accept_request_(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
+        request_data = self.request_queue.get(message_id, None)
         if request_data == None:
-            await ctx.send(f"The request with message id {messageid} doesn't exist.")
+            await ctx.send(f"The request with message id {message_id} doesn't exist.")
         else:
             if request_data[3] != lb:
                 await ctx.send("You are trying to access a request from another leaderboard.")
             else:
-                await ctx.send(await self.accept_request(ctx.author, messageid))
+                await ctx.send(await self.accept_request(ctx.author, message_id))
+
+    @commands.check(command_check_staff_roles)
+    @commands.command(aliases=['accept'])
+    async def accept_request_command(self, ctx: commands.Context, message_id: int):
+        lb = get_leaderboard(ctx)
+        await self.accept_request_(ctx, lb, message_id)
+
+    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.command(name='accept_penalty')
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def accept_request_command_slash(self, interaction: discord.Interaction, message_id: str, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        await self.accept_request_(ctx, lb, int(message_id))
+
+    async def refuse_request_(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
+        request_data = self.request_queue.get(message_id, None)
+        if request_data == None:
+            await ctx.send(f"The request with message id {message_id} doesn't exist.")
+        else:
+            if request_data[3] != lb:
+                await ctx.send("You are trying to access a request from another leaderboard.")
+            else:
+                await ctx.send(await self.refuse_request(ctx.author, message_id))
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['refuse'])
-    async def refuse_request_command(self, ctx: commands.Context, messageid: int):
+    async def refuse_request_command(self, ctx: commands.Context, message_id: int):
         lb = get_leaderboard(ctx)
-        request_data = self.request_queue.get(messageid, None)
-        if request_data == None:
-            await ctx.send(f"The request with message id {messageid} doesn't exist.")
-        else:
-            if request_data[3] != lb:
-                await ctx.send("You are trying to access a request from another leaderboard.")
-            else:
-                await ctx.send(await self.refuse_request(ctx.author, messageid))
+        await self.refuse_request_(ctx, lb, message_id)
 
-    @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['accept_all'])
-    async def accept_all_requests(self, ctx: commands.Context):
-        lb = get_leaderboard(ctx)
+    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.command(name='refuse_penalty')
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def refuse_request_command_slash(self, interaction: discord.Interaction, message_id: str, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        await self.refuse_request_(ctx, lb, int(message_id))
+
+    async def accept_all_request_(self, ctx: commands.Context, lb: LeaderboardConfig):
         request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
         remaining_requests = len(request_copy)
         remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
@@ -412,6 +445,20 @@ class Request(commands.Cog):
         except:
             pass
         await ctx.send("All requests have been accepted.")
+
+    @commands.check(command_check_staff_roles)
+    @commands.command(aliases=['accept_all'])
+    async def accept_all_requests_command(self, ctx: commands.Context):
+        lb = get_leaderboard(ctx)
+        await self.accept_all_request_(ctx, lb)
+
+    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.command(name='accept_all_penalties')
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def accept_all_requests_command_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        await self.accept_all_request_(ctx, lb)
 
 async def setup(bot):
     await bot.add_cog(Request(bot))
