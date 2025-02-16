@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
-from util import get_leaderboard_slash, get_leaderboard
+from util import get_leaderboard_slash, get_leaderboard, set_multipliers
 from models import LeaderboardConfig, ServerConfig
 from custom_checks import app_command_check_reporter_roles, check_role_list, command_check_staff_roles
 import API.get
@@ -13,15 +13,111 @@ import custom_checks
 from typing import Optional
 
 class PenaltyInstance:
-    def __init__(self, penalty_name, amount, lounge_id, discord_id, total_repick, races_played_alone, table_id, is_strike):
+    def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike):
         self.penalty_name = penalty_name
         self.amount = amount
         self.lounge_id=lounge_id
         self.discord_id=discord_id
-        self.total_repick = total_repick
-        self.races_played_alone = races_played_alone
         self.table_id = table_id
         self.is_strike = is_strike
+    
+    def create_embed(self, ctx, player_name: str, reason: str):
+        e = discord.Embed(title="Penalty request")
+        e.add_field(name="Player", value=player_name, inline=False)
+        e.add_field(name="Penalty type", value=self.penalty_name)
+        e.add_field(name="Issued from", value=ctx.channel.mention)
+        if self.table_id != 0 and self.table_id != None:
+            e.add_field(name="Table ID", value=self.table_id)
+        if reason != "" and reason != None:
+            e.add_field(name="Reason from reporter", value=reason, inline=False)
+        return e
+
+    async def send_request_to_channel(self, ctx, lb, embed):
+        penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
+        embed_message = await penalty_channel.send(embed=embed)
+                
+        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
+        embed.add_field(name="Requested by", value=ctx.author.mention, inline=False)
+        embed_message_log = await updating_log.send(embed=embed)
+
+        try:
+            await embed_message.add_reaction(CHECK_BOX)
+            await embed_message.add_reaction(X_MARK)
+        except:
+            pass
+
+        return (embed_message, embed_message_log)
+    
+class RepickInstance(PenaltyInstance):
+    def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike, total_repick):
+        super().__init__(penalty_name, amount, lounge_id, discord_id, table_id, is_strike)
+        self.total_repick = total_repick
+
+    def create_embed(self, ctx, player_name: str, reason: str):
+        partial_embed = PenaltyInstance.create_embed(self, ctx, player_name, reason)
+        partial_embed.add_field(name="Number of repick", value=self.total_repick)
+        return partial_embed
+
+class DropMidMogiInstance(PenaltyInstance):
+    def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike, races_played_alone):
+        super().__init__(penalty_name, amount, lounge_id, discord_id, table_id, is_strike)
+        self.races_played_alone = races_played_alone
+
+    def create_embed(self, ctx, player_name: str, reason: str):
+        partial_embed = PenaltyInstance.create_embed(self, ctx, player_name, reason)
+        partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
+        return partial_embed
+
+    async def same_team_players(self, ctx, player_name):
+        try:
+            lb = get_leaderboard(ctx)
+            table = await API.get.getTable(lb.website_credentials, self.table_id)
+            team = table.get_team(player_name)
+            if team == None:
+                return None
+            player = await API.get.getPlayerFromLounge(lb.website_credentials, self.lounge_id)
+            for tablescore in team.scores:
+                if tablescore.player.name == player.name:
+                    return True
+        except:
+            return None
+        return False
+
+    async def apply_multiplier(self, bot, ctx, player_name, request_queue):
+        if self.races_played_alone >= 3:
+            #In case the team concerned by the multiplier already received one, it will not apply a new one
+            for key, value in request_queue.items():
+                if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
+                    result = await self.same_team_players(ctx, player_name)
+                    if result == None or result == True:
+                        return
+
+            #Handle setml here
+            ctx.prefix = '!' #Hacky solution to avoid responding to original message
+            updating_cog = bot.get_cog('Updating')
+            mlraces_args = player_name + " " + str(self.races_played_alone)
+            await updating_cog.multiplierRaces(ctx, self.table_id, extraArgs=mlraces_args)
+
+    async def remove_multiplier(self, lb, ctx, player_name, request_queue):
+            #In case the team concerned by the multiplier received multiple drop mid mogi penalty, it will not try to remove the multiplier associated with it
+            for key, value in request_queue.items():
+                if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
+                    if await self.same_team_players(ctx, player_name):
+                        return
+
+            #Handle the removal here
+            table = await API.get.getTable(lb.website_credentials, self.table_id)
+            if table != None:
+                team = table.get_team(player_name)
+                setml_args = ""
+                for tablescore in team.scores:
+                    setml_args += tablescore.player.name + " 1, "
+                if setml_args != "":
+                    setml_args = setml_args[:-2]
+                await set_multipliers(ctx, lb, self.table_id, setml_args)
+            
+
+
 
 penalty_static_info = {
     "Late": (50, True),
@@ -64,6 +160,7 @@ class Request(commands.Cog):
         if penalty_data == None:
             return f"Unregistered request with message id {message_id}" #Indicate that the request has already been processed
 
+        penalty_instance: PenaltyInstance = penalty_data[0]
         embed_message_log = penalty_data[1]
         initial_ctx = penalty_data[2]
         lb = penalty_data[3]
@@ -76,6 +173,11 @@ class Request(commands.Cog):
             await request_message.delete()
         except:
             return "Request already handled " + embed_message_log.jump_url
+        
+        #Remove the multiplier only if it is the last remaining DropMidMogiInstance for the given team
+        if isinstance(penalty_instance, DropMidMogiInstance):
+            player_ = await API.get.getPlayerFromLounge(lb.website_credentials, penalty_instance.lounge_id)
+            await penalty_instance.remove_multiplier(lb, initial_ctx, player_.name, self.get_request_from_lb(dict(self.request_queue), lb))
             
         edited_embed = embed_message_log.embeds[0]
         edited_embed.title="Penalty request refused"
@@ -111,11 +213,8 @@ class Request(commands.Cog):
             return f"Player with lounge ID {penalty_instance.lounge_id} has not been found."
 
         penalties_cog = self.bot.get_cog('Penalties')
-        initial_ctx.channel = penalty_channel
-        initial_ctx.interaction = None #To remove the automatic reply to first message
-        initial_ctx.author = staff #The penalties and multipliers will be shown as applied by the staff that accepted the request and not the person that requested it
+        initial_ctx.author = staff #The penalties will be shown as applied by the staff that accepted the request and not the person that requested it
         id_result = []
-        ml_error_string = ""
         if penalty_instance.penalty_name == "Repick":
             #Repick automation
             for i in range(penalty_instance.total_repick):
@@ -124,23 +223,14 @@ class Request(commands.Cog):
                 else:
                     id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=True, is_request=True)
         else:
-            if penalty_instance.penalty_name == "Drop mid mogi" and penalty_instance.races_played_alone >= 3:
-                #Handle setml here
-                initial_ctx.prefix = '!' #Hacky solution to avoid responding to original message, but a working one
-                updating_cog = self.bot.get_cog('Updating')
-                mlraces_args = player.name + " " + str(penalty_instance.races_played_alone)
-                ml_error_string = await updating_cog.multiplierRaces(initial_ctx, penalty_instance.table_id, extraArgs=mlraces_args)
-
             id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
 
         edited_embed = embed_message_log.embeds[0]
         edited_embed.add_field(name="Accepted by", value=staff.mention, inline=False)
-        if None not in id_result and ml_error_string == "":
+        if None not in id_result:
             edited_embed.title="Penalty request accepted"
         else:
             edited_embed.title="Penalty request error"
-            if ml_error_string != "":
-                edited_embed.add_field(name="Error", value=ml_error_string)
 
         id_string = ""
         for index, id in enumerate(id_result):
@@ -156,44 +246,6 @@ class Request(commands.Cog):
         return_message = edited_embed.title + f": {embed_message_log.jump_url}"
         return_message = return_message if id_string == "" else return_message + " ID(s): " + id_string
         return return_message
-
-    async def add_penalty_to_channel(self, ctx: commands.Context, lb: LeaderboardConfig, penalty_type: str, player_name: str, repick_number=0, races_played_alone=0, table_id=0, reason=""):
-        #Reply for the reporter
-        player = await API.get.getPlayer(lb.website_credentials, player_name)
-        if(player == None):
-            await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
-            return
-        
-        e = discord.Embed(title="Penalty request")
-        e.add_field(name="Player", value=player_name, inline=False)
-        e.add_field(name="Penalty type", value=penalty_type)
-        if penalty_type == "Repick":
-            e.add_field(name="Number of repick", value=repick_number)
-        if penalty_type == "Drop mid mogi":
-            e.add_field(name="Number of races with a missing teammate", value=races_played_alone)
-        e.add_field(name="Issued from", value=ctx.channel.mention)
-        if table_id != 0 and table_id != None:
-            e.add_field(name="Table ID", value=table_id)
-        if reason != "" and reason != None:
-            e.add_field(name="Reason from reporter", value=reason, inline=False)
-        penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
-        embed_message = await penalty_channel.send(embed=e)
-                
-        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-        e.add_field(name="Requested by", value=ctx.author.mention, inline=False)
-        embed_message_log = await updating_log.send(embed=e)
-
-        await ctx.send(f"Penalty request issued for player {player_name}. Reason: {penalty_type}\nLink to request: {embed_message.jump_url}", ephemeral=True)
-
-        try:
-            await embed_message.add_reaction(CHECK_BOX)
-            await embed_message.add_reaction(X_MARK)
-        except:
-            pass
-
-        penalty_data = penalty_static_info.get(penalty_type)
-        self.request_queue[embed_message.id] = (PenaltyInstance(penalty_type, penalty_data[0], player.id, player.discord_id, repick_number, races_played_alone, table_id, penalty_data[1]), embed_message_log, ctx, lb)
-
 
     #Used to monitor when someone reacts to a request in the penalty channel
     @commands.Cog.listener(name='on_reaction_add')
@@ -249,6 +301,9 @@ class Request(commands.Cog):
                     number_of_races = 1
                 else:
                     number_of_races = 0
+        if number_of_races < 0 or number_of_races > 12:
+            await ctx.send("You entered an invalid number of races", ephemeral=True)
+            return
         if penalty_type == "Drop mid mogi" and number_of_races >= 3: #If the number of races is not sufficient for a reduction loss, no need to have a table_id
             if table_id == None:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
@@ -256,14 +311,37 @@ class Request(commands.Cog):
             table = await API.get.getTable(lb.website_credentials, table_id)
             if table is False:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
-                return
-            if number_of_races < 0 or number_of_races > 12:
-                await ctx.send("You entered an invalid number of races", ephemeral=True)
-                return
+                return 
         if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
             await ctx.send("You entered an invalid number of races", ephemeral=True)
             return
-        await self.add_penalty_to_channel(ctx, lb, penalty_type, player_name, repick_number=number_of_races, races_played_alone=number_of_races, table_id=table_id, reason=reason)
+        player = await API.get.getPlayer(lb.website_credentials, player_name)
+        if(player == None):
+            await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
+            return
+        
+        #Create penalty, create embed, send embed, add penalty to queue
+        penalty = None
+        penalty_data = penalty_static_info.get(penalty_type)
+        if penalty_type == "Drop mid mogi":
+            penalty = DropMidMogiInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
+        elif penalty_type == "Repick":
+            penalty = RepickInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
+        else:
+            penalty = PenaltyInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1])
+
+        embed = penalty.create_embed(ctx, player_name, reason)
+        (embed_message, embed_message_log) = await penalty.send_request_to_channel(ctx, lb, embed)
+
+        await ctx.send(f"Penalty request issued for player {player_name}. Reason: {penalty_type}\nLink to request: {embed_message.jump_url}", ephemeral=True)
+
+        penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
+        ctx.channel = penalty_channel
+        ctx.interaction = None #To remove the automatic reply to first message
+        if isinstance(penalty, DropMidMogiInstance):
+            await penalty.apply_multiplier(self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
+
+        self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['pending_requests'])
