@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
-from util import get_leaderboard_slash, get_leaderboard, set_multipliers
+from util import get_leaderboard_slash, get_leaderboard, set_multipliers, check_against_automod_lists
 from models import LeaderboardConfig, ServerConfig
 from custom_checks import app_command_check_reporter_roles, app_command_check_staff_roles, check_role_list, command_check_staff_roles
 import API.get
@@ -312,6 +312,9 @@ class Request(commands.Cog):
     async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, number_of_races: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
+        if not await check_against_automod_lists(ctx, reason):
+            await ctx.send("Your request was rejected because the \"reason\" field contains banned word(s)", ephemeral=True)
+            return
         if penalty_type not in penalty_static_info.keys():
             #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
             translation = CustomTranslator().translation_reverse_check(penalty_type)
