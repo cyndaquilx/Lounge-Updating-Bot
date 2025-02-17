@@ -68,27 +68,27 @@ class DropMidMogiInstance(PenaltyInstance):
         partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
         return partial_embed
 
-    async def same_team_players(self, ctx, player_name):
+    async def same_team_players(self, lb, player_name_new, player_name_old):
+        
         try:
-            lb = get_leaderboard(ctx)
             table = await API.get.getTable(lb.website_credentials, self.table_id)
-            team = table.get_team(player_name)
-            if team == None:
+            if table == None:
                 return None
-            player = await API.get.getPlayerFromLounge(lb.website_credentials, self.lounge_id)
+            team = table.get_team(player_name_new)
             for tablescore in team.scores:
-                if tablescore.player.name == player.name:
+                if tablescore.player.name == player_name_old:
                     return True
         except:
             return None
         return False
 
-    async def apply_multiplier(self, bot, ctx, player_name, request_queue):
+    async def apply_multiplier(self, lb, bot, ctx, player_name, request_queue):
         if self.races_played_alone >= 3:
             #In case the team concerned by the multiplier already received one, it will not apply a new one
             for key, value in request_queue.items():
                 if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
-                    result = await self.same_team_players(ctx, player_name)
+                    player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
+                    result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result == True:
                         return
 
@@ -102,7 +102,9 @@ class DropMidMogiInstance(PenaltyInstance):
             #In case the team concerned by the multiplier received multiple drop mid mogi penalty, it will not try to remove the multiplier associated with it
             for key, value in request_queue.items():
                 if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
-                    if await self.same_team_players(ctx, player_name):
+                    player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
+                    result = await self.same_team_players(lb, player_name, player.name)
+                    if result == None or result:
                         return
 
             #Handle the removal here
@@ -143,6 +145,23 @@ class Request(commands.Cog):
 
     #Dictionary containing: message ID -> (penalty instance, request log, context, leaderboardconfig)
     request_queue = {}
+
+    #List of applied multiplier but not updated tab (tab_id)
+    multiplier_protection = []
+
+    #Check if the highest tab in the multiplier list has been verified -> clear the list in that case
+    async def check_and_clear_multiplier_list(self, lb):
+        if len(self.multiplier_protection) == 0:
+            return
+        highest_id = max(self.multiplier_protection)
+        table = await API.get.getTable(lb.website_credentials, highest_id)
+        if table == None:
+            return
+        if table.verified_on != None:
+            try:
+                self.multiplier_protection.clear()
+            except:
+                return
 
     def get_request_from_lb(self, queue, lb: LeaderboardConfig):
         new_dict = {}
@@ -213,10 +232,15 @@ class Request(commands.Cog):
         if player == None:
             return f"Player with lounge ID {penalty_instance.lounge_id} has not been found."
 
+        #Lock any new mulitplier for this tab as long as the tab has not been updated
+        if isinstance(penalty_instance, DropMidMogiInstance):
+            if penalty_instance.table_id != None:
+                self.multiplier_protection.append(penalty_instance.table_id)
+
         penalties_cog = self.bot.get_cog('Penalties')
         initial_ctx.author = staff #The penalties will be shown as applied by the staff that accepted the request and not the person that requested it
         id_result = []
-        if penalty_instance.penalty_name == "Repick":
+        if isinstance(penalty_instance, RepickInstance):
             #Repick automation
             for i in range(penalty_instance.total_repick):
                 if i == 0:
@@ -271,10 +295,10 @@ class Request(commands.Cog):
         server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
 
         if str(reaction.emoji) == X_MARK and (user == ctx.author or check_role_list(user, (server_info.admin_roles + server_info.staff_roles))):
-            await self.refuse_request(user, reaction.message.id)
+            await self.refuse_request_process(user, reaction.message.id)
 
         if str(reaction.emoji) == CHECK_BOX and check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
-            await self.accept_request(user, reaction.message.id)
+            await self.accept_request_process(user, reaction.message.id)
             
 
     @app_commands.check(app_command_check_reporter_roles)
@@ -338,11 +362,14 @@ class Request(commands.Cog):
 
         await ctx.send(f"Penalty request issued for player {player_name}. Reason: {penalty_type}\nLink to request: {embed_message.jump_url}", ephemeral=True)
 
+        #To be done on every request by default while we don't have a solution working directly on the website
+        await self.check_and_clear_multiplier_list(lb)
+
         penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
         ctx.channel = penalty_channel
         ctx.interaction = None #To remove the automatic reply to first message
-        if isinstance(penalty, DropMidMogiInstance):
-            await penalty.apply_multiplier(self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
+        if isinstance(penalty, DropMidMogiInstance) and table_id != None and table_id not in self.multiplier_protection:
+            await penalty.apply_multiplier(lb, self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
 
         self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)
 
