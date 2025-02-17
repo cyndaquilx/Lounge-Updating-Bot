@@ -340,7 +340,7 @@ class Request(commands.Cog):
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
         if penalty_type == "3+ dcs" and number_of_races < 3:
-            await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"num_races\".", ephemeral=True)
+            await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"number_of_races\".", ephemeral=True)
             return
         if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
             await ctx.send("You entered an invalid number of races", ephemeral=True)
