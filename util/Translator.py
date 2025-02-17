@@ -18,6 +18,11 @@ class CustomTranslator(app_commands.Translator):
             "Drop durant le mogi",
             "Abandono de medio mogi",
             "Verlassen während des Mogi"),
+        "3+ dcs":
+            ("3+ dcs",
+            "3+ dcs",
+            "3+ dcs",
+            "3+ dcs"),
         "Drop before start":
             ("模擬開始前のドロップ",
             "Drop avant le début du mogi",
@@ -28,6 +33,11 @@ class CustomTranslator(app_commands.Translator):
             "Pénalité de tag",
             "Penalización por tag",
             "Bestrafung für den falschen Tag"),
+        "FFA name violation":
+            (None,
+            "Nom incorrect en FFA",
+            None,
+            None),
         "Repick":
             ("リピック",
             "Repeat",
@@ -70,6 +80,13 @@ class CustomTranslator(app_commands.Translator):
             "Información adicional que te gustaría proporcionar al staff",
             "Zusätzliche Informationen, die Sie dem Staff mitteilen möchten")
     }
+
+    def translation_reverse_check(self, string: str):
+        for key, value in self.en_to_others.items():
+            for translation in value:
+                if string == translation:
+                    return key
+        return None
 
     async def load(self):
         return
