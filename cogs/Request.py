@@ -156,7 +156,7 @@ class Request(commands.Cog):
         return choices
 
     #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
-    async def refuse_request(self, player: discord.User, message_id: int):
+    async def refuse_request_process(self, player: discord.User, message_id: int):
         penalty_data = self.request_queue.get(message_id, None)
         if penalty_data == None:
             return f"Unregistered request with message id {message_id}" #Indicate that the request has already been processed
@@ -188,7 +188,7 @@ class Request(commands.Cog):
         return f"Request successfully deleted {embed_message_log.jump_url}"
 
     #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
-    async def accept_request(self, staff: discord.User, message_id: int):
+    async def accept_request_process(self, staff: discord.User, message_id: int):
 
         penalty_data = self.request_queue.get(message_id, None)
         if penalty_data == None:
@@ -312,7 +312,7 @@ class Request(commands.Cog):
             if table is False:
                 await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
                 return
-        if penalty_type == "3+ dcs" and number_of_races < 4:
+        if penalty_type == "3+ dcs" and number_of_races < 3:
             await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"num_races\".", ephemeral=True)
             return
         if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
@@ -370,7 +370,7 @@ class Request(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['pending_penalties'])
-    async def pending_requests_command(self, ctx: commands.Context):
+    async def pending_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.pending_requests(ctx, lb)
 
@@ -382,7 +382,7 @@ class Request(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.pending_requests(ctx, lb)
 
-    async def accept_request_(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
+    async def accept_request(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
         request_data = self.request_queue.get(message_id, None)
         if request_data == None:
             await ctx.send(f"The request with message id {message_id} doesn't exist.")
@@ -390,13 +390,13 @@ class Request(commands.Cog):
             if request_data[3] != lb:
                 await ctx.send("You are trying to access a request from another leaderboard.")
             else:
-                await ctx.send(await self.accept_request(ctx.author, message_id))
+                await ctx.send(await self.accept_request_process(ctx.author, message_id))
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['accept'])
     async def accept_request_command(self, ctx: commands.Context, message_id: int):
         lb = get_leaderboard(ctx)
-        await self.accept_request_(ctx, lb, message_id)
+        await self.accept_request(ctx, lb, message_id)
 
     @app_commands.check(app_command_check_staff_roles)
     @app_commands.command(name='accept_penalty')
@@ -404,9 +404,9 @@ class Request(commands.Cog):
     async def accept_request_command_slash(self, interaction: discord.Interaction, message_id: str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.accept_request_(ctx, lb, int(message_id))
+        await self.accept_request(ctx, lb, int(message_id))
 
-    async def refuse_request_(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
+    async def refuse_request(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
         request_data = self.request_queue.get(message_id, None)
         if request_data == None:
             await ctx.send(f"The request with message id {message_id} doesn't exist.")
@@ -414,13 +414,13 @@ class Request(commands.Cog):
             if request_data[3] != lb:
                 await ctx.send("You are trying to access a request from another leaderboard.")
             else:
-                await ctx.send(await self.refuse_request(ctx.author, message_id))
+                await ctx.send(await self.refuse_request_process(ctx.author, message_id))
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['refuse'])
-    async def refuse_request_command(self, ctx: commands.Context, message_id: int):
+    async def refuse_request_command_text(self, ctx: commands.Context, message_id: int):
         lb = get_leaderboard(ctx)
-        await self.refuse_request_(ctx, lb, message_id)
+        await self.refuse_request(ctx, lb, message_id)
 
     @app_commands.check(app_command_check_staff_roles)
     @app_commands.command(name='refuse_penalty')
@@ -428,15 +428,15 @@ class Request(commands.Cog):
     async def refuse_request_command_slash(self, interaction: discord.Interaction, message_id: str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.refuse_request_(ctx, lb, int(message_id))
+        await self.refuse_request(ctx, lb, int(message_id))
 
-    async def accept_all_request_(self, ctx: commands.Context, lb: LeaderboardConfig):
+    async def accept_all_request(self, ctx: commands.Context, lb: LeaderboardConfig):
         request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
         remaining_requests = len(request_copy)
         remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
         
         for message_id in request_copy.keys():
-            await ctx.send(await self.accept_request(ctx.author, message_id))
+            await ctx.send(await self.accept_request_process(ctx.author, message_id))
             remaining_requests -= 1
             await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
         
@@ -448,9 +448,9 @@ class Request(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['accept_all'])
-    async def accept_all_requests_command(self, ctx: commands.Context):
+    async def accept_all_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
-        await self.accept_all_request_(ctx, lb)
+        await self.accept_all_request(ctx, lb)
 
     @app_commands.check(app_command_check_staff_roles)
     @app_commands.command(name='accept_all_penalties')
@@ -458,7 +458,7 @@ class Request(commands.Cog):
     async def accept_all_requests_command_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.accept_all_request_(ctx, lb)
+        await self.accept_all_request(ctx, lb)
 
 async def setup(bot):
     await bot.add_cog(Request(bot))
