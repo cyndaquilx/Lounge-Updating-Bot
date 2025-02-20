@@ -140,7 +140,7 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.hide_player(ctx, lb, name)
 
-    async def update_discord(self, ctx, lb: LeaderboardConfig, discord_id: int, name: str):
+    async def update_discord(self, ctx: commands.Context, lb: LeaderboardConfig, discord_id: int, name: str):
         player = await API.get.getPlayer(lb.website_credentials, name)
         if player is None:
             await ctx.send("The player couldn't be found!")
@@ -156,6 +156,7 @@ class Players(commands.Cog):
             e.add_field(name="Old Discord", value=f"<@{player.discord_id}>")
         e.add_field(name="New Discord", value=f"<@{discord_id}>")
         e.add_field(name="Changed by", value=ctx.author.mention, inline=False)
+        e.add_field(name="Changed in", value=ctx.channel.mention, inline=False)
         channel = ctx.guild.get_channel(lb.mute_ban_list_channel)
         if channel is not None:
             await channel.send(embed=e)
