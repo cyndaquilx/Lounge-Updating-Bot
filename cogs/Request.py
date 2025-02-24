@@ -11,6 +11,7 @@ import API.get
 import custom_checks
 
 from typing import Optional
+from operator import itemgetter
 
 class PenaltyInstance:
     def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike):
@@ -146,20 +147,24 @@ class Request(commands.Cog):
     #Dictionary containing: message ID -> (penalty instance, request log, context, leaderboardconfig)
     request_queue = {}
 
-    #List of applied multiplier but not updated tab (tab_id)
+    #List of applied multiplier but not updated tab: [(tab_id, lb)]
     multiplier_protection = []
 
     #Check if the highest tab in the multiplier list has been verified -> clear the list in that case
     async def check_and_clear_multiplier_list(self, lb):
-        if len(self.multiplier_protection) == 0:
+        id_list = []
+        for tuple in self.multiplier_protection:
+            if tuple[1] == lb:
+                id_list.append(tuple)
+        if len(id_list) == 0:
             return
-        highest_id = max(self.multiplier_protection)
+        highest_id = max(id_list, key=itemgetter(0))[0]
         table = await API.get.getTable(lb.website_credentials, highest_id)
         if table == None:
             return
         if table.verified_on != None:
             try:
-                self.multiplier_protection.clear()
+                self.multiplier_protection = [item for item in self.multiplier_protection if item not in id_list]
             except:
                 return
 
@@ -235,7 +240,7 @@ class Request(commands.Cog):
         #Lock any new mulitplier for this tab as long as the tab has not been updated
         if isinstance(penalty_instance, DropMidMogiInstance):
             if penalty_instance.table_id != None:
-                self.multiplier_protection.append(penalty_instance.table_id)
+                self.multiplier_protection.append((penalty_instance.table_id, lb))
 
         penalties_cog = self.bot.get_cog('Penalties')
         initial_ctx.author = staff #The penalties will be shown as applied by the staff that accepted the request and not the person that requested it
@@ -371,7 +376,7 @@ class Request(commands.Cog):
         penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
         ctx.channel = penalty_channel
         ctx.interaction = None #To remove the automatic reply to first message
-        if isinstance(penalty, DropMidMogiInstance) and table_id != None and table_id not in self.multiplier_protection:
+        if isinstance(penalty, DropMidMogiInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
             await penalty.apply_multiplier(lb, self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
 
         self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)

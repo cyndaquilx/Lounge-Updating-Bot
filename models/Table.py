@@ -36,7 +36,7 @@ class TableTeam:
         return self.get_team_score() < other.get_team_score()
     
     def __eq__(self, other):
-        return self.get_team_score() == other.get_team_score()
+        return self.get_team_score == other.get_team_score()
 
 @dataclass
 class TableBasic:
