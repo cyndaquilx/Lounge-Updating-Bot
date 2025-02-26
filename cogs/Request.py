@@ -6,7 +6,7 @@ from discord.app_commands import locale_str
 from util.Translator import CustomTranslator
 from util import get_leaderboard_slash, get_leaderboard, set_multipliers, check_against_automod_lists
 from models import LeaderboardConfig, ServerConfig
-from custom_checks import app_command_check_reporter_roles, app_command_check_staff_roles, check_role_list, command_check_staff_roles
+from custom_checks import app_command_check_reporter_roles, app_command_check_staff_roles, check_role_list, command_check_staff_roles, check_staff_roles
 import API.get
 import custom_checks
 
@@ -314,7 +314,7 @@ class Request(commands.Cog):
             player_name="The player being reported",
             number_of_races="'Drop mid mogi': number of races played alone / 'Repick': number of races repicked",
             reason="Additional information you would like to give to the staff")
-    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, number_of_races: Optional[int], table_id: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
+    async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, table_id: int, number_of_races: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         if reason != None and not await check_against_automod_lists(ctx, reason):
@@ -328,6 +328,24 @@ class Request(commands.Cog):
             else:
                 await ctx.send("This penalty type doesn't exist", ephemeral=True)
                 return
+        if table_id == None:
+            await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
+            return
+        table = await API.get.getTable(lb.website_credentials, table_id)
+        if table == None:
+            await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
+            return
+        #Check that the player is in the tab or is a staff
+        if not check_staff_roles(ctx):
+            is_in_tab = False
+            for table_team in table.teams:
+                for score in table_team.scores:
+                    if score.player.name == interaction.user.nick:
+                        is_in_tab = True
+                        break
+            if not is_in_tab:
+                await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
+                return
         if number_of_races == None:
                 if penalty_type == "Repick":
                     number_of_races = 1
@@ -336,14 +354,6 @@ class Request(commands.Cog):
         if number_of_races < 0 or number_of_races > 12:
             await ctx.send("You entered an invalid number of races", ephemeral=True)
             return
-        if penalty_type == "Drop mid mogi" and number_of_races >= 3 or penalty_type == "3+ dcs": #If the number of races is not sufficient for a reduction loss, no need to have a table_id
-            if table_id == None:
-                await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
-                return
-            table = await API.get.getTable(lb.website_credentials, table_id)
-            if table is False:
-                await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
-                return
         if penalty_type == "3+ dcs" and number_of_races < 3:
             await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"number_of_races\".", ephemeral=True)
             return
@@ -404,7 +414,7 @@ class Request(commands.Cog):
             await ctx.send(result_string)
 
     @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['pending_penalties'])
+    @commands.command(name='pendingPenalties', aliases=['penalties', 'pens'])
     async def pending_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.pending_requests(ctx, lb)
@@ -428,8 +438,8 @@ class Request(commands.Cog):
                 await ctx.send(await self.accept_request_process(ctx.author, message_id))
 
     @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['accept'])
-    async def accept_request_command(self, ctx: commands.Context, message_id: int):
+    @commands.command(name='acceptPenalty', aliases=['acceptPen'])
+    async def accept_request_command_text(self, ctx: commands.Context, message_id: int):
         lb = get_leaderboard(ctx)
         await self.accept_request(ctx, lb, message_id)
 
@@ -452,7 +462,7 @@ class Request(commands.Cog):
                 await ctx.send(await self.refuse_request_process(ctx.author, message_id))
 
     @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['refuse'])
+    @commands.command(name='refusePenalty', aliases=['refusePen', 'denyPen', 'denyPenalty'])
     async def refuse_request_command_text(self, ctx: commands.Context, message_id: int):
         lb = get_leaderboard(ctx)
         await self.refuse_request(ctx, lb, message_id)
@@ -482,7 +492,7 @@ class Request(commands.Cog):
         await ctx.send("All requests have been accepted.")
 
     @commands.check(command_check_staff_roles)
-    @commands.command(aliases=['accept_all'])
+    @commands.command(name='acceptAllPenalties', aliases=['acceptAllPens', 'uapens', 'aapens'])
     async def accept_all_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.accept_all_request(ctx, lb)
