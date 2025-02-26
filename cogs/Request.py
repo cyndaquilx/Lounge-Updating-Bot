@@ -439,17 +439,23 @@ class Request(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name='acceptPenalty', aliases=['acceptPen'])
-    async def accept_request_command_text(self, ctx: commands.Context, message_id: int):
+    async def accept_request_command_text(self, ctx: commands.Context, message_id: int = commands.parameter(description="Discord ID of the message in the penalty channel")):
         lb = get_leaderboard(ctx)
         await self.accept_request(ctx, lb, message_id)
 
     @app_commands.check(app_command_check_staff_roles)
     @app_commands.command(name='accept_penalty')
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @app_commands.describe(message_id="Discord ID of the message in the penalty channel")
     async def accept_request_command_slash(self, interaction: discord.Interaction, message_id: str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.accept_request(ctx, lb, int(message_id))
+        try:
+            id = int(message_id)    
+        except:
+            await ctx.send("Your message ID is not a valid ID")
+            return
+        await self.accept_request(ctx, lb, id)
 
     async def refuse_request(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
         request_data = self.request_queue.get(message_id, None)
@@ -463,17 +469,23 @@ class Request(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name='refusePenalty', aliases=['refusePen', 'denyPen', 'denyPenalty'])
-    async def refuse_request_command_text(self, ctx: commands.Context, message_id: int):
+    async def refuse_request_command_text(self, ctx: commands.Context, message_id: int = commands.parameter(description="Discord ID of the message in the penalty channel")):
         lb = get_leaderboard(ctx)
         await self.refuse_request(ctx, lb, message_id)
 
     @app_commands.check(app_command_check_staff_roles)
     @app_commands.command(name='refuse_penalty')
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @app_commands.describe(message_id="Discord ID of the message in the penalty channel")
     async def refuse_request_command_slash(self, interaction: discord.Interaction, message_id: str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.refuse_request(ctx, lb, int(message_id))
+        try:
+            id = int(message_id)    
+        except:
+            await ctx.send("Your message ID is not a valid ID")
+            return
+        await self.refuse_request(ctx, lb, id)
 
     async def accept_all_request(self, ctx: commands.Context, lb: LeaderboardConfig):
         request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
