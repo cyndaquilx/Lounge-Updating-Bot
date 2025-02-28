@@ -323,6 +323,7 @@ class Request(commands.Cog):
             number_of_races="'Drop mid mogi': number of races played alone / 'Repick': number of races repicked",
             reason="Additional information you would like to give to the staff")
     async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, table_id: int, number_of_races: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
+        await interaction.response.defer(ephemeral=True)
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         #if reason != None and not await check_against_automod_lists(ctx, reason):
