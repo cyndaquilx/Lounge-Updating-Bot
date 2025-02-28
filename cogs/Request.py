@@ -179,7 +179,7 @@ class Request(commands.Cog):
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
         return choices
 
-    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
+    #Parameters: the player refusing the request, the message_id from the request message in the dedicated request channel
     async def refuse_request_process(self, player: discord.User, message_id: int):
         penalty_data = self.request_queue.get(message_id, None)
         if penalty_data == None:
@@ -190,6 +190,14 @@ class Request(commands.Cog):
         initial_ctx = penalty_data[2]
         lb = penalty_data[3]
         penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
+
+        #If this is a drop penalty and the tab has already been verified, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
+        server_info: ServerConfig = initial_ctx.bot.config.servers.get(initial_ctx.guild.id, None)
+        if isinstance(penalty_instance, DropMidMogiInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
+            if penalty_instance.table_id != None:
+                table = await API.get.getTable(lb.website_credentials, penalty_instance.table_id)
+                if table != None and table.verified_on != None:
+                    return
 
         #To catch error due to event listener or other commands
         try:
@@ -317,9 +325,9 @@ class Request(commands.Cog):
     async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, table_id: int, number_of_races: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        if reason != None and not await check_against_automod_lists(ctx, reason):
-            await ctx.send("Your request was rejected because the \"reason\" field contains banned word(s)", ephemeral=True)
-            return
+        #if reason != None and not await check_against_automod_lists(ctx, reason):
+        #    await ctx.send("Your request was rejected because the \"reason\" field contains banned word(s)", ephemeral=True)
+        #    return
         if penalty_type not in penalty_static_info.keys():
             #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
             translation = CustomTranslator().translation_reverse_check(penalty_type)
@@ -335,8 +343,12 @@ class Request(commands.Cog):
         if table == None:
             await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
             return
-        #Check that the player is in the tab or is a staff
+        player = await API.get.getPlayer(lb.website_credentials, player_name)
+        if(player == None):
+            await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
+            return
         if not check_staff_roles(ctx):
+            #Check that the reporter is in the tab
             is_in_tab = False
             for table_team in table.teams:
                 for score in table_team.scores:
@@ -346,6 +358,11 @@ class Request(commands.Cog):
             if not is_in_tab:
                 await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
                 return
+            #FFA name violation check on table author
+            if penalty_type == "FFA name violation":
+                if ctx.author.id != table.author_id and player.discord_id != table.author_id:
+                    await ctx.send("You are not allowed to ask for a FFA name violation if you're not the table author or if you're not reporting the table author")
+                    return
         if number_of_races == None:
                 if penalty_type == "Repick":
                     number_of_races = 1
@@ -359,10 +376,6 @@ class Request(commands.Cog):
             return
         if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
             await ctx.send("You entered an invalid number of races", ephemeral=True)
-            return
-        player = await API.get.getPlayer(lb.website_credentials, player_name)
-        if(player == None):
-            await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
             return
         
         #Create penalty, create embed, send embed, add penalty to queue
