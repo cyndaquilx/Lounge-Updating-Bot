@@ -1,4 +1,5 @@
 from discord.ext import commands
+from discord import AutoModRuleTriggerType
 
 import re
 
@@ -30,8 +31,15 @@ def create_pattern(word: str):
 
 #Return true is the word can be displayed by the bot
 async def check_against_automod_lists(ctx: commands.Context, message: str):
-    rules = await ctx.guild.fetch_automod_rules()
+    try:
+        rules = await ctx.guild.fetch_automod_rules()
+    except:
+        return True
     for rule in rules:
+        if rule.trigger.type != AutoModRuleTriggerType.keyword:
+            continue
+        if len(rule.trigger.keyword_filter) == 0:
+            continue
         long_word_pattern = []
         short_word_pattern = []
         for word in rule.trigger.keyword_filter:
