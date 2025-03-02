@@ -59,18 +59,18 @@ class RepickInstance(PenaltyInstance):
         partial_embed.add_field(name="Number of repick", value=self.total_repick)
         return partial_embed
 
-class DropMidMogiInstance(PenaltyInstance):
+class DropInstance(PenaltyInstance):
     def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike, races_played_alone):
         super().__init__(penalty_name, amount, lounge_id, discord_id, table_id, is_strike)
         self.races_played_alone = races_played_alone
 
     def create_embed(self, ctx, player_name: str, reason: str):
         partial_embed = PenaltyInstance.create_embed(self, ctx, player_name, reason)
-        partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
+        if self.races_played_alone != 0:
+            partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
         return partial_embed
 
     async def same_team_players(self, lb, player_name_new, player_name_old):
-        
         try:
             table = await API.get.getTable(lb.website_credentials, self.table_id)
             if table == None:
@@ -87,7 +87,7 @@ class DropMidMogiInstance(PenaltyInstance):
         if self.races_played_alone >= 3:
             #In case the team concerned by the multiplier already received one, it will not apply a new one
             for key, value in request_queue.items():
-                if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
+                if value[0].table_id == self.table_id and isinstance(value[0], DropInstance):
                     player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
                     result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result == True:
@@ -102,7 +102,7 @@ class DropMidMogiInstance(PenaltyInstance):
     async def remove_multiplier(self, lb, ctx, player_name, request_queue):
             #In case the team concerned by the multiplier received multiple drop mid mogi penalty, it will not try to remove the multiplier associated with it
             for key, value in request_queue.items():
-                if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
+                if value[0].table_id == self.table_id and isinstance(value[0], DropInstance):
                     player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
                     result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result:
@@ -193,7 +193,7 @@ class Request(commands.Cog):
 
         #If this is a drop penalty and the tab has already been verified, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
         server_info: ServerConfig = initial_ctx.bot.config.servers.get(initial_ctx.guild.id, None)
-        if isinstance(penalty_instance, DropMidMogiInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
+        if isinstance(penalty_instance, DropInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
             if penalty_instance.table_id != None:
                 table = await API.get.getTable(lb.website_credentials, penalty_instance.table_id)
                 if table != None and table.verified_on != None:
@@ -208,7 +208,7 @@ class Request(commands.Cog):
             return "Request already handled " + embed_message_log.jump_url
         
         #Remove the multiplier only if it is the last remaining DropMidMogiInstance for the given team
-        if isinstance(penalty_instance, DropMidMogiInstance):
+        if isinstance(penalty_instance, DropInstance):
             player_ = await API.get.getPlayerFromLounge(lb.website_credentials, penalty_instance.lounge_id)
             await penalty_instance.remove_multiplier(lb, initial_ctx, player_.name, self.get_request_from_lb(dict(self.request_queue), lb))
             
@@ -246,7 +246,7 @@ class Request(commands.Cog):
             return f"Player with lounge ID {penalty_instance.lounge_id} has not been found."
 
         #Lock any new mulitplier for this tab as long as the tab has not been updated
-        if isinstance(penalty_instance, DropMidMogiInstance):
+        if isinstance(penalty_instance, DropInstance):
             if penalty_instance.table_id != None:
                 self.multiplier_protection.append((penalty_instance.table_id, lb))
 
@@ -379,8 +379,8 @@ class Request(commands.Cog):
         #Create penalty, create embed, send embed, add penalty to queue
         penalty = None
         penalty_data = penalty_static_info.get(penalty_type)
-        if penalty_type == "Drop mid mogi" or penalty_type == "3+ dcs":
-            penalty = DropMidMogiInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
+        if penalty_type == "Drop mid mogi" or penalty_type == "3+ dcs" or penalty_type == "Drop before start":
+            penalty = DropInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
         elif penalty_type == "Repick":
             penalty = RepickInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
         else:
@@ -397,7 +397,7 @@ class Request(commands.Cog):
         penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
         ctx.channel = penalty_channel
         ctx.interaction = None #To remove the automatic reply to first message
-        if isinstance(penalty, DropMidMogiInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
+        if isinstance(penalty, DropInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
             await penalty.apply_multiplier(lb, self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
 
         self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)
