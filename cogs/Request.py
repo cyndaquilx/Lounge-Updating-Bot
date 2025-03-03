@@ -59,18 +59,18 @@ class RepickInstance(PenaltyInstance):
         partial_embed.add_field(name="Number of repick", value=self.total_repick)
         return partial_embed
 
-class DropMidMogiInstance(PenaltyInstance):
+class DropInstance(PenaltyInstance):
     def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike, races_played_alone):
         super().__init__(penalty_name, amount, lounge_id, discord_id, table_id, is_strike)
         self.races_played_alone = races_played_alone
 
     def create_embed(self, ctx, player_name: str, reason: str):
         partial_embed = PenaltyInstance.create_embed(self, ctx, player_name, reason)
-        partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
+        if self.races_played_alone != 0:
+            partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
         return partial_embed
 
     async def same_team_players(self, lb, player_name_new, player_name_old):
-        
         try:
             table = await API.get.getTable(lb.website_credentials, self.table_id)
             if table == None:
@@ -87,7 +87,7 @@ class DropMidMogiInstance(PenaltyInstance):
         if self.races_played_alone >= 3:
             #In case the team concerned by the multiplier already received one, it will not apply a new one
             for key, value in request_queue.items():
-                if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
+                if value[0].table_id == self.table_id and isinstance(value[0], DropInstance):
                     player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
                     result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result == True:
@@ -102,7 +102,7 @@ class DropMidMogiInstance(PenaltyInstance):
     async def remove_multiplier(self, lb, ctx, player_name, request_queue):
             #In case the team concerned by the multiplier received multiple drop mid mogi penalty, it will not try to remove the multiplier associated with it
             for key, value in request_queue.items():
-                if value[0].table_id == self.table_id and isinstance(value[0], DropMidMogiInstance):
+                if value[0].table_id == self.table_id and isinstance(value[0], DropInstance):
                     player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
                     result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result:
@@ -179,7 +179,7 @@ class Request(commands.Cog):
         choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
         return choices
 
-    #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
+    #Parameters: the player refusing the request, the message_id from the request message in the dedicated request channel
     async def refuse_request_process(self, player: discord.User, message_id: int):
         penalty_data = self.request_queue.get(message_id, None)
         if penalty_data == None:
@@ -191,6 +191,14 @@ class Request(commands.Cog):
         lb = penalty_data[3]
         penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
 
+        #If this is a drop penalty and the tab has already been verified, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
+        server_info: ServerConfig = initial_ctx.bot.config.servers.get(initial_ctx.guild.id, None)
+        if isinstance(penalty_instance, DropInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
+            if penalty_instance.table_id != None:
+                table = await API.get.getTable(lb.website_credentials, penalty_instance.table_id)
+                if table != None and table.verified_on != None:
+                    return
+
         #To catch error due to event listener or other commands
         try:
             del self.request_queue[message_id]
@@ -200,7 +208,7 @@ class Request(commands.Cog):
             return "Request already handled " + embed_message_log.jump_url
         
         #Remove the multiplier only if it is the last remaining DropMidMogiInstance for the given team
-        if isinstance(penalty_instance, DropMidMogiInstance):
+        if isinstance(penalty_instance, DropInstance):
             player_ = await API.get.getPlayerFromLounge(lb.website_credentials, penalty_instance.lounge_id)
             await penalty_instance.remove_multiplier(lb, initial_ctx, player_.name, self.get_request_from_lb(dict(self.request_queue), lb))
             
@@ -238,7 +246,7 @@ class Request(commands.Cog):
             return f"Player with lounge ID {penalty_instance.lounge_id} has not been found."
 
         #Lock any new mulitplier for this tab as long as the tab has not been updated
-        if isinstance(penalty_instance, DropMidMogiInstance):
+        if isinstance(penalty_instance, DropInstance):
             if penalty_instance.table_id != None:
                 self.multiplier_protection.append((penalty_instance.table_id, lb))
 
@@ -315,11 +323,9 @@ class Request(commands.Cog):
             number_of_races="'Drop mid mogi': number of races played alone / 'Repick': number of races repicked",
             reason="Additional information you would like to give to the staff")
     async def append_penalty_slash(self, interaction: discord.Interaction, penalty_type: str, player_name: str, table_id: int, number_of_races: Optional[int], reason: Optional[str], leaderboard: Optional[str]):
+        await interaction.response.defer(ephemeral=True)
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        if reason != None and not await check_against_automod_lists(ctx, reason):
-            await ctx.send("Your request was rejected because the \"reason\" field contains banned word(s)", ephemeral=True)
-            return
         if penalty_type not in penalty_static_info.keys():
             #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
             translation = CustomTranslator().translation_reverse_check(penalty_type)
@@ -335,8 +341,12 @@ class Request(commands.Cog):
         if table == None:
             await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
             return
-        #Check that the player is in the tab or is a staff
+        player = await API.get.getPlayer(lb.website_credentials, player_name)
+        if(player == None):
+            await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
+            return
         if not check_staff_roles(ctx):
+            #Check that the reporter is in the tab
             is_in_tab = False
             for table_team in table.teams:
                 for score in table_team.scores:
@@ -346,6 +356,11 @@ class Request(commands.Cog):
             if not is_in_tab:
                 await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
                 return
+            #FFA name violation check on table author
+            if penalty_type == "FFA name violation":
+                if ctx.author.id != table.author_id and player.discord_id != table.author_id:
+                    await ctx.send("You are not allowed to ask for a FFA name violation if you're not the table author or if you're not reporting the table author")
+                    return
         if number_of_races == None:
                 if penalty_type == "Repick":
                     number_of_races = 1
@@ -360,16 +375,12 @@ class Request(commands.Cog):
         if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
             await ctx.send("You entered an invalid number of races", ephemeral=True)
             return
-        player = await API.get.getPlayer(lb.website_credentials, player_name)
-        if(player == None):
-            await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
-            return
         
         #Create penalty, create embed, send embed, add penalty to queue
         penalty = None
         penalty_data = penalty_static_info.get(penalty_type)
-        if penalty_type == "Drop mid mogi" or penalty_type == "3+ dcs":
-            penalty = DropMidMogiInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
+        if penalty_type == "Drop mid mogi" or penalty_type == "3+ dcs" or penalty_type == "Drop before start":
+            penalty = DropInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
         elif penalty_type == "Repick":
             penalty = RepickInstance(penalty_type, penalty_data[0], player.id, player.discord_id, table_id, penalty_data[1], number_of_races)
         else:
@@ -386,7 +397,7 @@ class Request(commands.Cog):
         penalty_channel = ctx.guild.get_channel(lb.penalty_channel)
         ctx.channel = penalty_channel
         ctx.interaction = None #To remove the automatic reply to first message
-        if isinstance(penalty, DropMidMogiInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
+        if isinstance(penalty, DropInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
             await penalty.apply_multiplier(lb, self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
 
         self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)
