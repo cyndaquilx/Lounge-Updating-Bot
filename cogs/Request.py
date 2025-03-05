@@ -176,7 +176,31 @@ class Request(commands.Cog):
         return new_dict
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-        choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
+        translator = CustomTranslator()
+        user_locale = interaction.locale
+        filtered = []
+        for penalty_name in penalty_static_info.keys():
+            translation = await translator.translate(locale_str(penalty_name), user_locale, None)
+            if translation == None:
+                filtered.append(penalty_name)
+                continue
+            #Check if characters appear in order but are not necessarily contiguous
+            result = True
+            index = 0
+            try: #Still continue even if it is not possible to lower a character
+                current = current.lower()
+                translation = translation.lower()
+            except:
+                pass
+            for char in current:
+                index = translation.find(char, index)
+                if index == -1:
+                    result = False
+                    break
+                index += 1
+            if result:
+                filtered.append(penalty_name)
+        choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in filtered]
         return choices
 
     #Parameters: the player refusing the request, the message_id from the request message in the dedicated request channel

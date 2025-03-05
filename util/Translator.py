@@ -34,10 +34,10 @@ class CustomTranslator(app_commands.Translator):
             "Penalización por tag",
             "Bestrafung für den falschen Tag"),
         "FFA name violation":
-            (None,
+            ("FFA name violation",
             "Nom incorrect en FFA",
-            None,
-            None),
+            "FFA name violation",
+            "FFA name violation"),
         "Repick":
             ("リピック",
             "Repeat",
@@ -105,4 +105,4 @@ class CustomTranslator(app_commands.Translator):
         if locale is discord.Locale.german:
             return self.en_to_others.get(message, self.dummy_reply)[3]
 
-        return None
+        return message
