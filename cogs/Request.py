@@ -112,12 +112,13 @@ class DropInstance(PenaltyInstance):
             table = await API.get.getTable(lb.website_credentials, self.table_id)
             if table != None:
                 team = table.get_team(player_name)
-                setml_args = ""
-                for tablescore in team.scores:
-                    setml_args += tablescore.player.name + " 1, "
-                if setml_args != "":
-                    setml_args = setml_args[:-2]
-                await set_multipliers(ctx, lb, self.table_id, setml_args)
+                if type(team) != type(None):
+                    setml_args = ""
+                    for tablescore in team.scores:
+                        setml_args += tablescore.player.name + " 1, "
+                    if setml_args != "":
+                        setml_args = setml_args[:-2]
+                    await set_multipliers(ctx, lb, self.table_id, setml_args)
             
 
 
@@ -144,7 +145,7 @@ class Request(commands.Cog):
 
     #request_group = app_commands.Group(name="request", description="Requests to staff")
 
-    #Dictionary containing: Message -> (penalty instance, request log, context, leaderboardconfig)
+    #Dictionary containing: Message -> (penalty instance, request log, context, leaderboardconfig, is table verified bool)
     request_queue = {}
 
     #List of applied multiplier but not updated tab: [(tab_id, lb)]
@@ -213,15 +214,15 @@ class Request(commands.Cog):
         embed_message_log = penalty_data[1]
         initial_ctx = penalty_data[2]
         lb = penalty_data[3]
-        penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
 
-        #If this is a drop penalty and the tab has already been verified, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
-        server_info: ServerConfig = initial_ctx.bot.config.servers.get(initial_ctx.guild.id, None)
-        if isinstance(penalty_instance, DropInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
-            if penalty_instance.table_id != None:
-                table = await API.get.getTable(lb.website_credentials, penalty_instance.table_id)
-                if table != None and table.verified_on != None:
-                    return
+        #If this is a drop penalty and the tab has been verified while the request was pending, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
+        if not penalty_data[4]:
+            server_info: ServerConfig = initial_ctx.bot.config.servers.get(initial_ctx.guild.id, None)
+            if isinstance(penalty_instance, DropInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
+                if penalty_instance.table_id != None:
+                    table = await API.get.getTable(lb.website_credentials, penalty_instance.table_id)
+                    if table != None and table.verified_on != None:
+                        return
 
         #To catch error due to event listener or other commands
         try:
@@ -409,7 +410,7 @@ class Request(commands.Cog):
         if isinstance(penalty, DropInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
             await penalty.apply_multiplier(lb, self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
 
-        self.request_queue[embed_message] = (penalty, embed_message_log, ctx, lb)
+        self.request_queue[embed_message] = (penalty, embed_message_log, ctx, lb, table.verified_on != None)
 
     async def pending_requests(self, ctx: commands.Context, lb: LeaderboardConfig):
         request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
