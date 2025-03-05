@@ -287,19 +287,7 @@ class Request(commands.Cog):
 
     #Used to monitor when someone reacts to a request in the penalty channel
     @commands.Cog.listener(name='on_reaction_add')
-    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User):
-        if user.bot:
-            return
-        server_info: ServerConfig = self.bot.config.servers.get(reaction.message.guild.id, None)
-        if not server_info:
-            return
-        channel_check = False #Used in order to avoid as much as possible further checks from unrelated reactions 
-        for key, leaderboard_config in server_info.leaderboards.items():
-            if reaction.message.channel.id == leaderboard_config.penalty_channel:
-                channel_check = True
-                break
-        if not channel_check:
-            return    
+    async def on_raw_reaction_add(self, reaction: discord.Reaction, user: discord.User):
         penalty_data = self.request_queue.get(reaction.message.id, None)
         if penalty_data == None:
             return
