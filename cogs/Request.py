@@ -12,6 +12,7 @@ import custom_checks
 
 from typing import Optional
 from operator import itemgetter
+from dataclasses import dataclass
 
 class PenaltyInstance:
     def __init__(self, penalty_name, amount, lounge_id, discord_id, table_id, is_strike):
@@ -86,9 +87,9 @@ class DropInstance(PenaltyInstance):
     async def apply_multiplier(self, lb, bot, ctx, player_name, request_queue):
         if self.races_played_alone >= 3:
             #In case the team concerned by the multiplier already received one, it will not apply a new one
-            for key, value in request_queue.items():
-                if value[0].table_id == self.table_id and isinstance(value[0], DropInstance):
-                    player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
+            for request in request_queue.values():
+                if request.penalty_instance.table_id == self.table_id and isinstance(request.penalty_instance, DropInstance):
+                    player = await API.get.getPlayerFromLounge(lb.website_credentials, request.penalty_instance.lounge_id)
                     result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result == True:
                         return
@@ -101,9 +102,9 @@ class DropInstance(PenaltyInstance):
 
     async def remove_multiplier(self, lb, ctx, player_name, request_queue):
             #In case the team concerned by the multiplier received multiple drop mid mogi penalty, it will not try to remove the multiplier associated with it
-            for key, value in request_queue.items():
-                if value[0].table_id == self.table_id and isinstance(value[0], DropInstance):
-                    player = await API.get.getPlayerFromLounge(lb.website_credentials, value[0].lounge_id)
+            for request in request_queue.values():
+                if request.penalty_instance.table_id == self.table_id and isinstance(request.penalty_instance, DropInstance):
+                    player = await API.get.getPlayerFromLounge(lb.website_credentials, request.penalty_instance.lounge_id)
                     result = await self.same_team_players(lb, player_name, player.name)
                     if result == None or result:
                         return
@@ -112,15 +113,23 @@ class DropInstance(PenaltyInstance):
             table = await API.get.getTable(lb.website_credentials, self.table_id)
             if table != None:
                 team = table.get_team(player_name)
-                setml_args = ""
-                for tablescore in team.scores:
-                    setml_args += tablescore.player.name + " 1, "
-                if setml_args != "":
-                    setml_args = setml_args[:-2]
-                await set_multipliers(ctx, lb, self.table_id, setml_args)
+                if type(team) != type(None):
+                    setml_args = ""
+                    for tablescore in team.scores:
+                        setml_args += tablescore.player.name + " 1, "
+                    if setml_args != "":
+                        setml_args = setml_args[:-2]
+                    await set_multipliers(ctx, lb, self.table_id, setml_args)
             
 
-
+@dataclass
+class RequestInstance:
+    message: discord.Message #In the penalty channel
+    message_log: discord.Message #In the log channel
+    penalty_instance: PenaltyInstance
+    initial_ctx: commands.Context
+    leaderboard: LeaderboardConfig
+    is_table_verified: bool #State of the given tab ID when the request is created
 
 penalty_static_info = {
     "Late": (50, True),
@@ -144,7 +153,7 @@ class Request(commands.Cog):
 
     #request_group = app_commands.Group(name="request", description="Requests to staff")
 
-    #Dictionary containing: message ID -> (penalty instance, request log, context, leaderboardconfig)
+    #Dictionary containing: Message ID -> RequestInstance
     request_queue = {}
 
     #List of applied multiplier but not updated tab: [(tab_id, lb)]
@@ -171,99 +180,109 @@ class Request(commands.Cog):
     def get_request_from_lb(self, queue, lb: LeaderboardConfig):
         new_dict = {}
         for key, value in queue.items():
-            if value[3] == lb:
+            if value.leaderboard == lb:
                 new_dict[key] = value
         return new_dict
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-        choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in penalty_static_info.keys()]
+        translator = CustomTranslator()
+        user_locale = interaction.locale
+        filtered = []
+        for penalty_name in penalty_static_info.keys():
+            translation = await translator.translate(locale_str(penalty_name), user_locale, None)
+            if translation == None:
+                filtered.append(penalty_name)
+                continue
+            #Check if characters appear in order but are not necessarily contiguous
+            result = True
+            index = 0
+            try: #Still continue even if it is not possible to lower a character
+                current = current.lower()
+                translation = translation.lower()
+            except:
+                pass
+            for char in current:
+                index = translation.find(char, index)
+                if index == -1:
+                    result = False
+                    break
+                index += 1
+            if result:
+                filtered.append(penalty_name)
+        choices = [app_commands.Choice(name=locale_str(penalty_name), value=penalty_name) for penalty_name in filtered]
         return choices
 
     #Parameters: the player refusing the request, the message_id from the request message in the dedicated request channel
-    async def refuse_request_process(self, player: discord.User, message_id: int):
-        penalty_data = self.request_queue.get(message_id, None)
-        if penalty_data == None:
+    async def refuse_request_process(self, player: discord.Member, message_id: int):
+        request_data: RequestInstance = self.request_queue.get(message_id, None)
+        if request_data == None:
             return f"Unregistered request with message id {message_id}" #Indicate that the request has already been processed
 
-        penalty_instance: PenaltyInstance = penalty_data[0]
-        embed_message_log = penalty_data[1]
-        initial_ctx = penalty_data[2]
-        lb = penalty_data[3]
-        penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
-
-        #If this is a drop penalty and the tab has already been verified, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
-        server_info: ServerConfig = initial_ctx.bot.config.servers.get(initial_ctx.guild.id, None)
-        if isinstance(penalty_instance, DropInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
-            if penalty_instance.table_id != None:
-                table = await API.get.getTable(lb.website_credentials, penalty_instance.table_id)
-                if table != None and table.verified_on != None:
-                    return
+        #If this is a drop penalty and the tab has been verified while the request was pending, prevent a reporter from deleting it (force player to commit for multipliers AND strike)
+        if not request_data.is_table_verified:
+            server_info: ServerConfig = request_data.initial_ctx.bot.config.servers.get(request_data.initial_ctx.guild.id, None)
+            if isinstance(request_data.penalty_instance, DropInstance) and not check_role_list(player, (server_info.admin_roles + server_info.staff_roles)):
+                if request_data.penalty_instance.table_id != None:
+                    table = await API.get.getTable(request_data.leaderboard.website_credentials, request_data.penalty_instance.table_id)
+                    if table != None and table.verified_on != None:
+                        return
 
         #To catch error due to event listener or other commands
         try:
             del self.request_queue[message_id]
-            request_message = await penalty_channel.fetch_message(message_id)
-            await request_message.delete()
+            await request_data.message.delete()
         except:
-            return "Request already handled " + embed_message_log.jump_url
+            return "Request already handled " + request_data.message_log.jump_url
         
         #Remove the multiplier only if it is the last remaining DropMidMogiInstance for the given team
-        if isinstance(penalty_instance, DropInstance):
-            player_ = await API.get.getPlayerFromLounge(lb.website_credentials, penalty_instance.lounge_id)
-            await penalty_instance.remove_multiplier(lb, initial_ctx, player_.name, self.get_request_from_lb(dict(self.request_queue), lb))
+        if isinstance(request_data.penalty_instance, DropInstance):
+            player_ = await API.get.getPlayerFromLounge(request_data.leaderboard.website_credentials, request_data.penalty_instance.lounge_id)
+            await request_data.penalty_instance.remove_multiplier(request_data.leaderboard, request_data.initial_ctx, player_.name, self.get_request_from_lb(dict(self.request_queue), request_data.leaderboard))
             
-        edited_embed = embed_message_log.embeds[0]
+        edited_embed = request_data.message_log.embeds[0]
         edited_embed.title="Penalty request refused"
         edited_embed.add_field(name="Refused by", value=player.mention, inline=False)
-        await embed_message_log.edit(embed=edited_embed)
+        await request_data.message_log.edit(embed=edited_embed)
 
-        return f"Request successfully deleted {embed_message_log.jump_url}"
+        return f"Request successfully deleted {request_data.message_log.jump_url}"
 
     #Parameters: the staff accepting the request, the message_id from the request message in the dedicated request channel
-    async def accept_request_process(self, staff: discord.User, message_id: int):
-
-        penalty_data = self.request_queue.get(message_id, None)
-        if penalty_data == None:
+    async def accept_request_process(self, staff: discord.Member, message_id: int):
+        request_data: RequestInstance = self.request_queue.get(message_id, None)
+        if request_data == None:
             return f"Unregistered request with message id {message_id}" #Indicate that the request has already been processed
-
-        penalty_instance: PenaltyInstance = penalty_data[0]
-        embed_message_log = penalty_data[1]
-        initial_ctx = penalty_data[2]
-        lb = penalty_data[3]
-        penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
 
         #To catch error due to event listener or other commands
         try:
             del self.request_queue[message_id]
-            request_message = await penalty_channel.fetch_message(message_id)
-            await request_message.delete()
+            await request_data.message.delete()
         except:
-            return "Request already handled " + embed_message_log.jump_url
+            return "Request already handled " + request_data.message_log.jump_url
         
         #Used to get the most up to date name for the player with the lounge ID
-        player = await API.get.getPlayerFromLounge(lb.website_credentials, penalty_instance.lounge_id)
+        player = await API.get.getPlayerFromLounge(request_data.leaderboard.website_credentials, request_data.penalty_instance.lounge_id)
         if player == None:
-            return f"Player with lounge ID {penalty_instance.lounge_id} has not been found."
+            return f"Player with lounge ID {request_data.penalty_instance.lounge_id} has not been found."
 
         #Lock any new mulitplier for this tab as long as the tab has not been updated
-        if isinstance(penalty_instance, DropInstance):
-            if penalty_instance.table_id != None:
-                self.multiplier_protection.append((penalty_instance.table_id, lb))
+        if isinstance(request_data.penalty_instance, DropInstance):
+            if request_data.penalty_instance.table_id != None:
+                self.multiplier_protection.append((request_data.penalty_instance.table_id, request_data.leaderboard))
 
         penalties_cog = self.bot.get_cog('Penalties')
-        initial_ctx.author = staff #The penalties will be shown as applied by the staff that accepted the request and not the person that requested it
+        request_data.initial_ctx.author = staff #The penalties will be shown as applied by the staff that accepted the request and not the person that requested it
         id_result = []
-        if isinstance(penalty_instance, RepickInstance):
+        if isinstance(request_data.penalty_instance, RepickInstance):
             #Repick automation
-            for i in range(penalty_instance.total_repick):
+            for i in range(request_data.penalty_instance.total_repick):
                 if i == 0:
-                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
+                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
                 else:
-                    id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=True, is_request=True)
+                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, is_anonymous=True, is_strike=True, is_request=True)
         else:
-            id_result += await penalties_cog.add_penalty(initial_ctx, lb, penalty_instance.amount, "", [player.name], reason=penalty_instance.penalty_name, is_anonymous=True, is_strike=penalty_instance.is_strike, is_request=True)
+            id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, is_anonymous=True, is_strike=request_data.penalty_instance.is_strike, is_request=True)
 
-        edited_embed = embed_message_log.embeds[0]
+        edited_embed = request_data.message_log.embeds[0]
         edited_embed.add_field(name="Accepted by", value=staff.mention, inline=False)
         if None not in id_result:
             edited_embed.title="Penalty request accepted"
@@ -279,39 +298,27 @@ class Request(commands.Cog):
         if id_string != "":
             edited_embed.add_field(name="Penalty ID(s)", value=id_string, inline=False)
         
-        await embed_message_log.edit(embed=edited_embed)
+        await request_data.message_log.edit(embed=edited_embed)
 
-        return_message = edited_embed.title + f": {embed_message_log.jump_url}"
+        return_message = edited_embed.title + f": {request_data.message_log.jump_url}"
         return_message = return_message if id_string == "" else return_message + " ID(s): " + id_string
         return return_message
 
     #Used to monitor when someone reacts to a request in the penalty channel
-    @commands.Cog.listener(name='on_reaction_add')
-    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User):
-        if user.bot:
+    @commands.Cog.listener(name='on_raw_reaction_add')
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.member.bot:
             return
-        server_info: ServerConfig = self.bot.config.servers.get(reaction.message.guild.id, None)
-        if not server_info:
+        request_data: RequestInstance = self.request_queue.get(payload.message_id, None)
+        if request_data == None:
             return
-        channel_check = False #Used in order to avoid as much as possible further checks from unrelated reactions 
-        for key, leaderboard_config in server_info.leaderboards.items():
-            if reaction.message.channel.id == leaderboard_config.penalty_channel:
-                channel_check = True
-                break
-        if not channel_check:
-            return    
-        penalty_data = self.request_queue.get(reaction.message.id, None)
-        if penalty_data == None:
-            return
+        server_info: ServerConfig = request_data.initial_ctx.bot.config.servers.get(request_data.initial_ctx.guild.id, None)
 
-        ctx = penalty_data[2]
-        server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
+        if str(payload.emoji) == X_MARK and (payload.member == request_data.initial_ctx.author or check_role_list(payload.member, (server_info.admin_roles + server_info.staff_roles))):
+            await self.refuse_request_process(payload.member, request_data.message.id)
 
-        if str(reaction.emoji) == X_MARK and (user == ctx.author or check_role_list(user, (server_info.admin_roles + server_info.staff_roles))):
-            await self.refuse_request_process(user, reaction.message.id)
-
-        if str(reaction.emoji) == CHECK_BOX and check_role_list(user, (server_info.admin_roles + server_info.staff_roles)):
-            await self.accept_request_process(user, reaction.message.id)
+        if str(payload.emoji) == CHECK_BOX and check_role_list(payload.member, (server_info.admin_roles + server_info.staff_roles)):
+            await self.accept_request_process(payload.member, request_data.message.id)
             
 
     @app_commands.check(app_command_check_reporter_roles)
@@ -400,7 +407,7 @@ class Request(commands.Cog):
         if isinstance(penalty, DropInstance) and table_id != None and (table_id, lb) not in self.multiplier_protection:
             await penalty.apply_multiplier(lb, self.bot, ctx, player_name, self.get_request_from_lb(dict(self.request_queue), lb))
 
-        self.request_queue[embed_message.id] = (penalty, embed_message_log, ctx, lb)
+        self.request_queue[embed_message.id] = RequestInstance(embed_message, embed_message_log, penalty, ctx, lb, table.verified_on != None)
 
     async def pending_requests(self, ctx: commands.Context, lb: LeaderboardConfig):
         request_copy = self.get_request_from_lb(dict(self.request_queue), lb)
@@ -408,14 +415,8 @@ class Request(commands.Cog):
             await ctx.send("There are no pending requests")
             return
         result_string = ""
-        for message_id, penalty_data in request_copy.items():
-            penalty_instance: PenaltyInstance = penalty_data[0]
-            initial_ctx = penalty_data[2]
-            lb = penalty_data[3]
-            penalty_channel = initial_ctx.guild.get_channel(lb.penalty_channel)
-            request_message = await penalty_channel.fetch_message(message_id)
-
-            current_line = penalty_instance.penalty_name + " for player with discord ID " + str(penalty_instance.discord_id) + f" {request_message.jump_url}\n"
+        for request_data in request_copy.values():
+            current_line = request_data.penalty_instance.penalty_name + " for player with discord ID " + str(request_data.penalty_instance.discord_id) + f" {request_data.message.jump_url}\n"
             if len(result_string) + len(current_line) > 2000:
                     await ctx.send(result_string)
                     result_string = ""
@@ -439,11 +440,11 @@ class Request(commands.Cog):
         await self.pending_requests(ctx, lb)
 
     async def accept_request(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
-        request_data = self.request_queue.get(message_id, None)
+        request_data: RequestInstance = self.request_queue.get(message_id, None)
         if request_data == None:
             await ctx.send(f"The request with message id {message_id} doesn't exist.")
         else:
-            if request_data[3] != lb:
+            if request_data.leaderboard != lb:
                 await ctx.send("You are trying to access a request from another leaderboard.")
             else:
                 await ctx.send(await self.accept_request_process(ctx.author, message_id))
@@ -469,11 +470,11 @@ class Request(commands.Cog):
         await self.accept_request(ctx, lb, id)
 
     async def refuse_request(self, ctx: commands.Context, lb: LeaderboardConfig, message_id: int):
-        request_data = self.request_queue.get(message_id, None)
+        request_data: RequestInstance = self.request_queue.get(message_id, None)
         if request_data == None:
             await ctx.send(f"The request with message id {message_id} doesn't exist.")
         else:
-            if request_data[3] != lb:
+            if request_data.leaderboard != lb:
                 await ctx.send("You are trying to access a request from another leaderboard.")
             else:
                 await ctx.send(await self.refuse_request_process(ctx.author, message_id))
@@ -503,8 +504,8 @@ class Request(commands.Cog):
         remaining_requests = len(request_copy)
         remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
         
-        for message_id in request_copy.keys():
-            await ctx.send(await self.accept_request_process(ctx.author, message_id))
+        for id in request_copy.keys():
+            await ctx.send(await self.accept_request_process(ctx.author, id))
             remaining_requests -= 1
             await remaining_message.edit(content=f"Remaining requests: {remaining_requests}, please wait.")
         
