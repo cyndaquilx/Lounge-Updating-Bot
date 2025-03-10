@@ -6,7 +6,7 @@ class Reactions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.embed_queue: dict[discord.TextChannel, list[discord.Embed]] = {}
-        
+
         self._embedqueue_task = self.send_queued_embeds.start()
 
     @tasks.loop(seconds=5)
@@ -17,7 +17,7 @@ class Reactions(commands.Cog):
             # (this is so that new embeds can still be added after
             #  the function starts without them being lost)
             # ordering doesn't really matter since this is just a log
-            for i in range(len(self.embed_queue[channel]), -1, -1):
+            for i in range(len(self.embed_queue[channel])-1, -1, -1):
                 e = self.embed_queue[channel].pop(i)
                 if len(curr_embeds) == 10:
                     await channel.send(embeds=curr_embeds)
