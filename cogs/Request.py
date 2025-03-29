@@ -357,9 +357,8 @@ class Request(commands.Cog):
             is_in_tab = False
             for table_team in table.teams:
                 for score in table_team.scores:
-                    if score.player.name == interaction.user.nick:
+                    if score.player.discord_id != None and score.player.discord_id == str(interaction.user.id):
                         is_in_tab = True
-                        break
             if not is_in_tab:
                 await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
                 return
