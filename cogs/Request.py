@@ -276,11 +276,11 @@ class Request(commands.Cog):
             #Repick automation
             for i in range(request_data.penalty_instance.total_repick):
                 if i == 0:
-                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, is_anonymous=True, is_strike=False, is_request=True)
+                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=False, is_request=True)
                 else:
-                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, is_anonymous=True, is_strike=True, is_request=True)
+                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=True, is_request=True)
         else:
-            id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, is_anonymous=True, is_strike=request_data.penalty_instance.is_strike, is_request=True)
+            id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=request_data.penalty_instance.is_strike, is_request=True)
 
         edited_embed = request_data.message_log.embeds[0]
         edited_embed.add_field(name="Accepted by", value=staff.mention, inline=False)
