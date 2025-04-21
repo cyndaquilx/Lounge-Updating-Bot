@@ -334,13 +334,20 @@ class Request(commands.Cog):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         if penalty_type not in penalty_static_info.keys():
-            #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
-            translation = CustomTranslator().translation_reverse_check(penalty_type)
-            if translation != None and translation in penalty_static_info.keys():
-                penalty_type = translation
-            else:
-                await ctx.send("This penalty type doesn't exist", ephemeral=True)
-                return
+            found_name = False
+            for name in penalty_static_info.keys():
+                if name.lower() == penalty_type:
+                    penalty_type = name
+                    found_name = True
+                    break
+            if not found_name:
+                #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
+                translation = CustomTranslator().translation_reverse_check(penalty_type)
+                if translation != None and translation in penalty_static_info.keys():
+                    penalty_type = translation
+                else:
+                    await ctx.send("This penalty type doesn't exist", ephemeral=True)
+                    return
         if table_id == None:
             await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
             return
@@ -413,9 +420,15 @@ class Request(commands.Cog):
         if len(request_copy) == 0:
             await ctx.send("There are no pending requests")
             return
-        result_string = ""
+        request_list = []
         for request_data in request_copy.values():
-            current_line = request_data.penalty_instance.penalty_name + " for player with discord ID " + str(request_data.penalty_instance.discord_id) + f" {request_data.message.jump_url}\n"
+            request_list.append((request_data.penalty_instance.table_id, request_data.penalty_instance.penalty_name, "<@" + str(request_data.penalty_instance.discord_id) + ">", request_data.message.jump_url))
+        def sort_request(elem):
+            return elem[0]
+        request_list.sort(key=sort_request)
+        result_string = ""
+        for request_data in request_list:
+            current_line = str(request_data[0]) + " | " + request_data[2] + " | " + request_data[1] + f" | {request_data[3]}\n"
             if len(result_string) + len(current_line) > 2000:
                     await ctx.send(result_string)
                     result_string = ""

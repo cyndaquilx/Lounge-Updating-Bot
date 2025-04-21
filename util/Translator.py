@@ -84,7 +84,7 @@ class CustomTranslator(app_commands.Translator):
     def translation_reverse_check(self, string: str):
         for key, value in self.en_to_others.items():
             for translation in value:
-                if string == translation:
+                if string.lower() == translation.lower():
                     return key
         return None
 
