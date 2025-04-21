@@ -12,7 +12,7 @@ class CustomTranslator(app_commands.Translator):
             ("遅刻",
             "Retard",
             "Ingreso tardío a la sala",
-            "Spät"),
+            "Spätes Erscheinen"),
         "Drop mid mogi":
             ("模擬中のドロップ",
             "Drop durant le mogi",
@@ -34,10 +34,10 @@ class CustomTranslator(app_commands.Translator):
             "Penalización por tag",
             "Bestrafung für den falschen Tag"),
         "FFA name violation":
-            ("FFA name violation",
+            ("名前の違反(FFA)",
             "Nom incorrect en FFA",
-            "FFA name violation",
-            "FFA name violation"),
+            "Nombre incorrecto en FFA",
+            "Bestrafung für den falschen FFA Namen"),
         "Repick":
             ("リピック",
             "Repeat",
