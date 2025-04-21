@@ -53,7 +53,7 @@ class Penalties(commands.Cog):
             strike_str += f"{date_formatted} ({date_relative})\n"
         return strike_str
 
-    async def pen_channel(self, ctx: commands.Context, lb: LeaderboardConfig, player: Player, tier: str, reason: str | None, 
+    async def pen_channel(self, ctx: commands.Context, lb: LeaderboardConfig, player: Player, tier: str, reason: str | None, table_id: int | None,
                           amount: int, channel: discord.TextChannel, is_anonymous: bool, is_strike: bool, is_request=False):
         pen, error = await API.post.createPenalty(lb.website_credentials, player.name, abs(amount), is_strike)
         if pen is None:
@@ -73,6 +73,8 @@ class Penalties(commands.Cog):
             e.add_field(name="Given by", value=ctx.author.mention)
         if reason:
             e.add_field(name="Reason", value=reason, inline=False)
+        if table_id:
+            e.add_field(name="Table ID", value=table_id)
         if is_strike:
             strike_str = await self.get_strike_history(lb, player.name)
             if len(strike_str):
@@ -109,7 +111,7 @@ class Penalties(commands.Cog):
                 await ctx.send(f"Added -{abs(amount)} penalty to {pen.player_name} in {pen_msg.jump_url} (ID: {pen.id})")
         return pen.id
 
-    async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], reason: str | None, is_anonymous=False, is_strike=False, is_request=False):
+    async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], reason: str | None, table_id: int | None, is_anonymous=False, is_strike=False, is_request=False):
         tier = tier.upper()
         if tier not in lb.tier_results_channels.keys() and not is_request:
             await ctx.send(f"Your tier is not valid! Valid tiers are: {list(lb.tier_results_channels.keys())}")
@@ -134,7 +136,7 @@ class Penalties(commands.Cog):
                 players.append(player)
         id_result = []
         for player in players:
-            id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, amount, channel, is_anonymous, is_strike, is_request=is_request))
+            id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, is_strike, is_request=is_request))
         return id_result
 
     async def parse_and_add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier, args: str, is_anonymous=False, is_strike=False):
@@ -146,7 +148,7 @@ class Penalties(commands.Cog):
         reason = None
         if len(split_args) > 1:
             reason = split_args[1].strip()
-        await self.add_penalty(ctx, lb, amount, tier, names, reason, is_anonymous, is_strike)
+        await self.add_penalty(ctx, lb, amount, tier, names, reason, None, is_anonymous, is_strike)
 
     @penalty_group.command(name="new")
     @app_commands.check(app_command_check_staff_roles)
@@ -156,7 +158,7 @@ class Penalties(commands.Cog):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         parsed_names = [n.strip() for n in names.split(",")]
-        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, anonymous, strike)
+        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, strike)
 
     @penalty_group.command(name="strike")
     @app_commands.check(app_command_check_staff_roles)
@@ -166,7 +168,7 @@ class Penalties(commands.Cog):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         parsed_names = [n.strip() for n in names.split(",")]
-        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, anonymous, True)
+        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, True)
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="penalty", aliases=['pen'])
