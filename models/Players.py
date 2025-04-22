@@ -155,22 +155,26 @@ class PlayerDetailed(Player):
 @dataclass
 class ListPlayer:
     name: str
-    mkc_id: int
+    mkc_id: int | None
     mmr: int | None
+    discord_id: int | None
     events_played: int
-    discord_id: int | None = None
     
     @classmethod
     def from_api_response(cls, body: dict):
-        return msgspec.convert(body, type=cls)
+        name = body.get('name')
+        mkc_id = body.get('mkcId', None)
+        mmr = body.get('mmr', None)
+        discord_id = body.get('discordId', None)
+        events_played = body.get('eventsPlayed', 0)
+        return cls(str(name), mkc_id, mmr, discord_id, int(events_played))
     
     @classmethod
     def from_list_api_response(cls, body: dict):
-        #player_list: list[ListPlayer] = []
-        #players: list[dict] = body['players']
-        #for player in players:
-        #    player_list.append(ListPlayer.from_api_response(player))
-        player_list = msgspec.convert(body, type=list[cls])
+        player_list: list[ListPlayer] = []
+        players: list[dict] = body['players']
+        for player in players:
+            player_list.append(ListPlayer.from_api_response(player))
         return player_list
 
 @dataclass
