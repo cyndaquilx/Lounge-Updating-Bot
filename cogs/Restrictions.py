@@ -5,14 +5,14 @@ from datetime import datetime, timedelta, timezone
 from io import StringIO
 
 from custom_checks import check_chat_restricted_roles, command_check_staff_roles
-from models import ServerConfig
+from models import ServerConfig, UpdatingBot
+from typing import Union
 
 class Restrictions(commands.Cog):
-    def __init__ (self, bot: commands.Bot):
+    def __init__ (self, bot: UpdatingBot):
         self.bot = bot
         with open('./allowed_phrases.json', 'r', encoding='utf-8') as f:
             self.phrases: dict[str, list[str]] = json.load(f)
-        #self.allowed_phrases = self.phrases["ALLOWED_PHRASES"]
 
         #Dictionary containing a list of illegal messages sent by chat restricted users.
         self.violations: dict[discord.Member, list[datetime]] = {}
@@ -34,6 +34,7 @@ class Restrictions(commands.Cog):
                     time_list.pop(i)
 
     async def add_violation(self, message:discord.Message):
+        assert isinstance(message.author, discord.Member)
         if message.author not in self.violations.keys():
             self.violations[message.author] = []
         self.violations[message.author].append(datetime.now(timezone.utc))
@@ -42,6 +43,7 @@ class Restrictions(commands.Cog):
             await message.channel.send(f"{message.author.mention} you have been timed out for 5 minutes for violating chat restriction rules", delete_after=15.0)
 
     async def add_message(self, message:discord.Message):
+        assert isinstance(message.author, discord.Member)
         if message.author not in self.restricted_msgs.keys():
             self.restricted_msgs[message.author] = []
         self.restricted_msgs[message.author].append(datetime.now(timezone.utc))
@@ -55,7 +57,9 @@ class Restrictions(commands.Cog):
             return
         if message.guild is None:
             return
-        server_info: ServerConfig = self.bot.config.servers.get(message.guild.id, None)
+        if not isinstance(message.channel, Union[discord.TextChannel, discord.Thread]):
+            return
+        server_info: ServerConfig | None = self.bot.config.servers.get(message.guild.id, None)
         if server_info is None:
             return
         # don't want to delete CR'd messages in tickets
@@ -63,7 +67,7 @@ class Restrictions(commands.Cog):
             return
         if check_chat_restricted_roles(self.bot, message.author):
             # get the list of allowed phrases for this server
-            server_allowed_phrases: list[str] = self.phrases.get(str(message.guild.id), None)
+            server_allowed_phrases: list[str] | None = self.phrases.get(str(message.guild.id), None)
             if not server_allowed_phrases:
                 return
             if message.reference is not None:
@@ -81,7 +85,9 @@ class Restrictions(commands.Cog):
             return
         if after.author.bot:
             return
-        server_info: ServerConfig = self.bot.config.servers.get(after.guild.id, None)
+        if not isinstance(after.channel, Union[discord.TextChannel, discord.Thread]):
+            return
+        server_info: ServerConfig | None = self.bot.config.servers.get(after.guild.id, None)
         if server_info is None:
             return
         # don't want to delete CR'd messages in tickets
@@ -89,7 +95,7 @@ class Restrictions(commands.Cog):
             return
         if check_chat_restricted_roles(self.bot, after.author):
             # get the list of allowed phrases for this server
-            server_allowed_phrases: list[str] = self.phrases.get(str(after.guild.id), None)
+            server_allowed_phrases: list[str] | None = self.phrases.get(str(after.guild.id), None)
             if not server_allowed_phrases:
                 return
             if after.content.lower() not in server_allowed_phrases:
@@ -98,21 +104,28 @@ class Restrictions(commands.Cog):
 
     @commands.command(aliases=['rw'])
     @commands.cooldown(1, 300, commands.BucketType.member)
+    @commands.guild_only()
     async def restrictedwords(self, ctx: commands.Context):
-        server_allowed_phrases: list[str] = self.phrases.get(str(ctx.guild.id), None)
+        if not ctx.guild:
+            return
+        server_allowed_phrases: list[str] | None = self.phrases.get(str(ctx.guild.id), None)
         if server_allowed_phrases is None:
             await ctx.send("There are no restricted words in this server.")
             return
         file = StringIO()
         json.dump(server_allowed_phrases, file, ensure_ascii=False, indent=4)
         file.seek(0)
-        f = discord.File(fp=file, filename="phrases.json")
+        file_data = file.getvalue().encode('utf-8')
+        f = discord.File(fp=bytes(file_data), filename="phrases.json")
         await ctx.send(file=f)
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['addrw'])
+    @commands.guild_only()
     async def add_restricted_word(self, ctx: commands.Context, *, phrase: str):
-        server_allowed_phrases: list[str] = self.phrases.get(str(ctx.guild.id), None)
+        if not ctx.guild:
+            return
+        server_allowed_phrases: list[str] | None = self.phrases.get(str(ctx.guild.id), None)
         if server_allowed_phrases is None:
             server_allowed_phrases = []
             self.phrases[str(ctx.guild.id)] = server_allowed_phrases
@@ -126,10 +139,14 @@ class Restrictions(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['delrw'])
+    @commands.guild_only()
     async def remove_restricted_word(self, ctx: commands.Context, *, phrase: str):
-        server_allowed_phrases: list[str] = self.phrases.get(str(ctx.guild.id), None)
+        if not ctx.guild:
+            return
+        server_allowed_phrases: list[str] | None = self.phrases.get(str(ctx.guild.id), None)
         if server_allowed_phrases is None:
             await ctx.send("not a restricted word")
+            return
         if phrase.lower() not in server_allowed_phrases:
             await ctx.send("not a restricted word")
             return

@@ -4,6 +4,7 @@ import re
 from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta
+from typing import Union
 
 player_score = {}
 
@@ -15,6 +16,8 @@ class Make_table(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if not isinstance(message.channel, Union[discord.TextChannel, discord.Thread]):
+            return
         if message.author.bot or message.guild is None or "tier" not in message.channel.name or "results" in message.channel.name:
             return
 
@@ -33,7 +36,7 @@ class Make_table(commands.Cog):
 async def make_table(interaction: discord.Interaction, message: discord.Message):
     """setup the command to submit table"""
 
-    if "**Poll Ended!**" not in message.content:
+    if "**Poll Ended!**" not in message.content or not isinstance(message.channel, Union[discord.TextChannel, discord.Thread]):
         return await interaction.response.send_message(content="invalid message", ephemeral=True)
 
     scoreboard_split = message.content.split("!scoreboard")

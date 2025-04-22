@@ -12,16 +12,21 @@ class Players(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    player_group = app_commands.Group(name="player", description="Manage players")
+    player_group = app_commands.Group(name="player", description="Manage players", guild_only=True)
 
     async def add_player(self, ctx: commands.Context, lb: LeaderboardConfig, mkcID: int, member: discord.Member | int, name: str, mmr: int | None):
+        assert ctx.guild is not None
+
+        # if 0 is passed in, set member_id to None (used in text commands if we don't want to add a discord for the player)
         if isinstance(member, int):
-            member_id = member
-            if member != 0:
-                member = ctx.guild.get_member(member)
-                if not member:
-                    await ctx.send("Member not found")
+            if member == 0:
+                member_id = None
+            else:
+                found_member = ctx.guild.get_member(member)
+                if not found_member:
+                    await ctx.send(f"Member with ID {member} not found")
                     return
+                member_id = found_member.id
         else:
             member_id = member.id
         name = name.strip()
@@ -40,12 +45,11 @@ class Players(commands.Cog):
             return
 
         if mmr is not None:
-            success, player = await API.post.createPlayerWithMMR(lb.website_credentials, mkcID, mmr, name, member_id)
+            player, error = await API.post.createPlayerWithMMR(lb.website_credentials, mkcID, mmr, name, member_id)
         else:
-            success, player = await API.post.createNewPlayer(lb.website_credentials, mkcID, name, member_id)
-        if success is False:
-            await ctx.send("An error occurred while trying to add the player: %s"
-                           % player)
+            player, error = await API.post.createNewPlayer(lb.website_credentials, mkcID, name, member_id)
+        if player is None:
+            await ctx.send(f"An error occurred while trying to add the player: {error}")
             return
         
         roleGiven = ""
@@ -75,14 +79,15 @@ class Players(commands.Cog):
 
             if lb.enable_verification_dms:
                 quick_start_channel = ctx.guild.get_channel(lb.quick_start_channel)
-                verification_msg = f"Your account has been successfully verified in {ctx.guild.name}! For information on how to join matches, " + \
-                    f"check the {quick_start_channel.mention} channel." + \
-                    f"\n{ctx.guild.name}への登録が完了しました！ 模擬への参加方法は{quick_start_channel.mention} をご覧下さい。"
-                try:
-                    await member.send(verification_msg)
-                    roleGiven += f"\nSuccessfully sent verification DM to the player"
-                except Exception as e:
-                    roleGiven += f"\nPlayer does not accept DMs from the bot, so verification DM was not sent"
+                if quick_start_channel:
+                    verification_msg = f"Your account has been successfully verified in {ctx.guild.name}! For information on how to join matches, " + \
+                        f"check the {quick_start_channel.mention} channel." + \
+                        f"\n{ctx.guild.name}への登録が完了しました！ 模擬への参加方法は{quick_start_channel.mention} をご覧下さい。"
+                    try:
+                        await member.send(verification_msg)
+                        roleGiven += f"\nSuccessfully sent verification DM to the player"
+                    except Exception as e:
+                        roleGiven += f"\nPlayer does not accept DMs from the bot, so verification DM was not sent"
 
         await embedded.delete()
         url = f"{lb.website_credentials.url}/PlayerDetails/{player.id}"
@@ -97,6 +102,7 @@ class Players(commands.Cog):
         e.add_field(name="Added by", value=ctx.author.mention, inline=False)
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
     @commands.check(command_check_admin_mkc_roles)
@@ -141,6 +147,9 @@ class Players(commands.Cog):
         await self.hide_player(ctx, lb, name)
 
     async def update_discord(self, ctx: commands.Context, lb: LeaderboardConfig, discord_id: int, name: str):
+        assert isinstance(ctx.channel, discord.TextChannel)
+        assert ctx.guild is not None
+        
         player = await API.get.getPlayer(lb.website_credentials, name)
         if player is None:
             await ctx.send("The player couldn't be found!")
@@ -159,10 +168,12 @@ class Players(commands.Cog):
         e.add_field(name="Changed in", value=ctx.channel.mention, inline=False)
         channel = ctx.guild.get_channel(lb.mute_ban_list_channel)
         if channel is not None:
+            assert isinstance(channel, discord.TextChannel)
             await channel.send(embed=e)
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="updateDiscord", aliases=['ud'])
+    @commands.guild_only()
     async def update_discord_text(self, ctx, member:Union[discord.Member, int], *, name):
         if isinstance(member, discord.Member):
             member = member.id
@@ -311,12 +322,6 @@ class Players(commands.Cog):
         await give_placement_role(ctx, lb, player, placeMMR)
         await ctx.send(f"Successfully placed {player.name} in {rank} with {placeMMR} MMR")
         return True
-    
-    # @commands.check(command_check_staff_roles)
-    # @commands.command(name="place")
-    # async def place_rank_text(self, ctx, rank, *, name):
-    #     lb = get_leaderboard(ctx)
-    #     await self.place_player_in_rank(ctx, lb, rank, name)
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="place", aliases=['placemmr'])

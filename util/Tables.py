@@ -3,8 +3,10 @@ from discord.ext import commands
 from models import TableBasic, Table, LeaderboardConfig
 from custom_checks import yes_no_check
 import API.post
+from typing import Union
 
 async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: TableBasic, bypass_confirmation = False) -> Table | None:
+    assert ctx.guild is not None
     total = table.score_total()
     expected_total = int(lb.races_per_mogi*lb.points_per_race)
     embedded = None
@@ -36,8 +38,9 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
     table_image_url = f"{lb.website_credentials.url}{sent_table.get_table_image_url()}"
     e.set_image(url=table_image_url)
     channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
-
-    tableMsg = await channel.send(embed=e)
+    if channel:
+        assert isinstance(channel, discord.TextChannel)
+        tableMsg = await channel.send(embed=e)
     
     await API.post.setTableMessageId(lb.website_credentials, sent_table.id, tableMsg.id)
     if embedded is not None:
@@ -49,16 +52,23 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
     return sent_table
 
 async def delete_table(ctx: commands.Context, lb: LeaderboardConfig, table: Table, reason="", send_log=True):
+    assert ctx.guild is not None
+    assert isinstance(ctx.channel, Union[discord.TextChannel, discord.Thread])
     rank_changes = ""
     if table.verified_on:
         for team in table.teams:
             for score in team.scores:
                 # if this table was one where the player ranked up/down, we want to put them in their previous rank
+                if score.new_mmr is None or score.prev_mmr is None:
+                    continue
                 old_rank = lb.get_rank(score.new_mmr)
                 new_rank = lb.get_rank(score.prev_mmr)
                 if old_rank == new_rank:
                     continue
-                member = ctx.guild.get_member(int(score.player.discord_id))
+                if score.player.discord_id:
+                    member = ctx.guild.get_member(int(score.player.discord_id))
+                else:
+                    member = None
                 # don't want to mention people in ticket threads and add them to it
                 if member and not hasattr(ctx.channel, 'parent_id'):
                     player_name = member.mention
@@ -74,20 +84,22 @@ async def delete_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
                     if new_role and new_role not in member.roles:
                         await member.add_roles(new_role)
     channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
-    if table.table_message_id:
-        try:
-            table_msg = await channel.fetch_message(table.table_message_id)
-            if table_msg is not None:
-                await table_msg.delete()
-        except:
-            pass
-    if table.update_message_id:
-        try:
-            update_msg = await channel.fetch_message(table.update_message_id)
-            if update_msg is not None:
-                await update_msg.delete()
-        except:
-            pass
+    if channel:
+        assert isinstance(channel, discord.TextChannel)
+        if table.table_message_id:
+            try:
+                table_msg = await channel.fetch_message(table.table_message_id)
+                if table_msg is not None:
+                    await table_msg.delete()
+            except:
+                pass
+        if table.update_message_id:
+            try:
+                update_msg = await channel.fetch_message(table.update_message_id)
+                if update_msg is not None:
+                    await update_msg.delete()
+            except:
+                pass
     success = await API.post.deleteTable(lb.website_credentials, table.id)
     if success is True:
         await ctx.send(f"Successfully deleted table with ID {table.id}\n{rank_changes}")
@@ -103,4 +115,5 @@ async def delete_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
             e.add_field(name="Reason", value=reason, inline=False)
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)

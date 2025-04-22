@@ -10,20 +10,20 @@ import custom_checks
 
 from typing import Optional
 from util import submit_table, delete_table, get_leaderboard, get_leaderboard_slash, set_multipliers, update_roles, parse_scores, check_placements
-from models import ServerConfig, LeaderboardConfig
+from models import ServerConfig, LeaderboardConfig, UpdatingBot, Player
 
 import traceback
 import copy
 
 class Updating(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: UpdatingBot):
         self.bot = bot
 
-    update_group = app_commands.Group(name="update", description="Update tables")
+    update_group = app_commands.Group(name="update", description="Update tables", guild_only=True)
 
     async def get_pending(self, ctx: commands.Context, lb: LeaderboardConfig):
         tables = await API.get.getPending(lb.website_credentials)
-        if len(tables) == 0:
+        if not tables or len(tables) == 0:
             await ctx.send("There are no pending tables")
             return
         msg = ""
@@ -51,6 +51,7 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="pending")
+    @commands.guild_only()
     async def pending_text(self, ctx):
         lb = get_leaderboard(ctx)
         await self.get_pending(ctx, lb)
@@ -73,13 +74,14 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="update", aliases=["u"])
+    @commands.guild_only()
     async def update_table_text(self, ctx, tableid: int, *, extraArgs=""):
         lb = get_leaderboard(ctx)
         await self.update_table(ctx, lb, tableid, extraArgs=extraArgs)
 
     async def update_all_tables(self, ctx: commands.Context, lb: LeaderboardConfig, tier:Optional[str] = None, until_id: Optional[int] = None):
         tables = await API.get.getPending(lb.website_credentials)
-        if tables is False:
+        if tables is None or not len(tables):
             await ctx.send("There are no pending tables")
             return
         for table in tables:
@@ -107,6 +109,7 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['ua'])
+    @commands.guild_only()
     async def updateAll(self, ctx):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb)
@@ -121,6 +124,7 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['ut'])
+    @commands.guild_only()
     async def updateTier(self, ctx, tier):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, tier=tier)
@@ -135,6 +139,7 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['uu'])
+    @commands.guild_only()
     async def updateUntil(self, ctx, tableid:int):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, until_id=tableid)
@@ -149,16 +154,18 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['utu'])
+    @commands.guild_only()
     async def updateTierUntil(self, ctx, tier: str, table_id:int):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, tier=tier, until_id=table_id)
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['setml'])
+    @commands.guild_only()
     async def setMultipliers(self, ctx, table_id:int, *, extraArgs=""):
         lb = get_leaderboard(ctx)
         table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is False:
+        if table is None:
             await ctx.send("Table couldn't be found")
             return
         workmsg = await ctx.send("Working...")
@@ -168,10 +175,11 @@ class Updating(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['mlraces'])
+    @commands.guild_only()
     async def multiplierRaces(self, ctx: commands.Context, table_id: int, *, extraArgs=""):
         lb = get_leaderboard(ctx)
         table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is False:
+        if table is None:
             await ctx.send("Table couldn't be found")
             return "Table not found"
         workmsg = await ctx.send("Working...")
@@ -192,7 +200,9 @@ class Updating(commands.Cog):
                     await workmsg.edit(content=f"The minimum number of races to be missed for increased loss is {min_missed_races}")
                     return "Wrong number of race"
                 if player_name.isdigit():
-                    player_name = table.get_score_from_discord(int(player_name)).player.name
+                    player_score = table.get_score_from_discord(int(player_name))
+                    if player_score:
+                        player_name = player_score.player.name
                 missed_races[player_name] = player_races_int
         if len(missed_races) == 0:
             await ctx.send("No valid arguments found")
@@ -221,7 +231,8 @@ class Updating(commands.Cog):
         await workmsg.edit(content=f"Set the following multipliers:\n{mult_msg}")
         return ""
             
-    async def update_table(self, ctx: commands.Context, lb: LeaderboardConfig, table_id:int, *, extraArgs=""):
+    async def update_table(self, ctx: commands.Context, lb: LeaderboardConfig, table_id:int, *, extraArgs=None):
+        assert ctx.guild is not None
         table = await API.get.getTable(lb.website_credentials, table_id)
         if table is None:
             await ctx.send(f"Table with ID {table_id} couldn't be found")
@@ -230,8 +241,9 @@ class Updating(commands.Cog):
             await ctx.send(f"Table ID {table_id} is deleted and cannot be updated")
             return
         workmsg = await ctx.send("Working...")
-        if not await set_multipliers(ctx, lb, table_id, extraArgs):
-            return
+        if extraArgs:
+            if not await set_multipliers(ctx, lb, table_id, extraArgs):
+                return
         
         await check_placements(ctx, lb, table)
 
@@ -241,12 +253,16 @@ class Updating(commands.Cog):
             return False
 
         channel = ctx.guild.get_channel(lb.tier_results_channels[updated_table.tier])
+        if channel:
+            assert isinstance(channel, discord.TextChannel)
 
         mmrTable = await mmrTables.create_mmr_table(lb, updated_table)
 
         rankChanges = ""
         for team in updated_table.teams:
             for score in team.scores:
+                assert score.prev_mmr is not None
+                assert score.new_mmr is not None
                 rankChanges += await update_roles(ctx, lb, score.player, score.prev_mmr, score.new_mmr)
 
         # put player names in alt text so that they can search up their past results easily
@@ -255,7 +271,8 @@ class Updating(commands.Cog):
                          description=" ".join(names))
         e = discord.Embed(title="MMR Table")
         reactMsg = None
-        if updated_table.table_message_id:
+        
+        if updated_table.table_message_id and channel:
             try:
                 reactMsg = await channel.fetch_message(updated_table.table_message_id)
                 CHECK_BOX = "\U00002611"
@@ -271,9 +288,9 @@ class Updating(commands.Cog):
         e.set_image(url="attachment://MMRTable.png")
         if reactMsg is not None:
             updateMsg = await reactMsg.reply(content=rankChanges, embed=e, file=f)
-        else:
+        elif channel:
             updateMsg = await channel.send(content=rankChanges, embed=e, file=f)
-        if ctx.channel.id != channel.id:
+        if channel and ctx.channel.id != channel.id:
             await workmsg.edit(content=f"Table ID `{table_id}` updated successfully; check {updateMsg.jump_url} to view")
         else:
             await workmsg.delete()
@@ -286,6 +303,7 @@ class Updating(commands.Cog):
     
     @commands.check(command_check_admin_roles)
     @commands.command(name="getMMRTable")
+    @commands.guild_only()
     async def get_mmr_table_text(self, ctx: commands.Context, table_id: int):
         lb = get_leaderboard(ctx)
         table = await API.get.getTable(lb.website_credentials, table_id)
@@ -300,6 +318,7 @@ class Updating(commands.Cog):
         await ctx.send(file=f)
     
     async def update_scores(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, args: str):
+        assert ctx.guild is not None
         table = await API.get.getTable(lb.website_credentials, table_id)
         if table is None:
             await ctx.send("Table couldn't be found")
@@ -321,25 +340,29 @@ class Updating(commands.Cog):
             return
         if table.table_message_id:
             channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
-            try:
-                table_msg = await channel.fetch_message(table.table_message_id)
-                # add info about who edited the table to the table msg
-                table_embed = table_msg.embeds[0]
-                table_embed.add_field(name=f"Edits by {ctx.author.display_name}",
-                    value="\n".join([f"{name}: {'|'.join(str(score) for score in scores[name])}" for name in scores.keys()]),
-                    inline=False)
-                await table_msg.edit(embed=table_embed)
-            except:
-                pass
+            if channel:
+                try:
+                    assert isinstance(channel, discord.TextChannel)
+                    table_msg = await channel.fetch_message(table.table_message_id)
+                    # add info about who edited the table to the table msg
+                    table_embed = table_msg.embeds[0]
+                    table_embed.add_field(name=f"Edits by {ctx.author.display_name}",
+                        value="\n".join([f"{name}: {'|'.join(str(score) for score in scores[name])}" for name in scores.keys()]),
+                        inline=False)
+                    await table_msg.edit(embed=table_embed)
+                except:
+                    pass
         await ctx.send("Successfully edited scores")
 
     @commands.check(command_check_reporter_roles)
     @commands.command(name="updateScores", aliases=['us'])
+    @commands.guild_only()
     async def update_scores_text(self, ctx, tableID:int, *, args):
         lb = get_leaderboard(ctx)
         await self.update_scores(ctx, lb, tableID, args)
 
     async def fix_table_names(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, args: str):
+        assert ctx.guild is not None
         table = await API.get.getTable(lb.website_credentials, table_id)
         if table is None:
             await ctx.send("Table couldn't be found")
@@ -352,14 +375,17 @@ class Updating(commands.Cog):
         old_names = [names[i].strip() for i in range(0, len(names), 2)]
         new_names = [names[i].strip() for i in range(1, len(names), 2)]
         players = await API.get.getPlayers(lb.website_credentials, new_names)
+        found_players: list[Player] = []
         err_str = ""
         for i, player in enumerate(players):
             if not player:
                 err_str += f"{new_names[i]}\n"
+            else:
+                found_players.append(player)
         if len(err_str) > 0:
             await ctx.send(f"The following players cannot be found on the leaderboard:\n{err_str}")
             return
-        new_names = [p.name for p in players]
+        new_names = [p.name for p in found_players]
         for i in range(len(old_names)):
             score = table.get_score(old_names[i])
             if not score:
@@ -376,15 +402,18 @@ class Updating(commands.Cog):
         e.add_field(name="New ID", value=new_table.id)
         e.add_field(name="Updated by", value=ctx.author.mention, inline=False)
         if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="fixNames")
+    @commands.guild_only()
     async def fix_names_text(self, ctx: commands.Context, table_id:int, *, args):
         lb = get_leaderboard(ctx)
         await self.fix_table_names(ctx, lb, table_id, args)
 
     async def fix_table_scores(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, args: str):
+        assert ctx.guild is not None
         table = await API.get.getTable(lb.website_credentials, table_id)
         if table is None:
             await ctx.send("Table couldn't be found")
@@ -411,10 +440,12 @@ class Updating(commands.Cog):
         e.add_field(name="New ID", value=new_table.id)
         e.add_field(name="Updated by", value=ctx.author.mention, inline=False)
         if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="fixScores")
+    @commands.guild_only()
     async def fix_scores_text(self, ctx: commands.Context, table_id:int, *, args):
         lb = get_leaderboard(ctx)
         await self.fix_table_scores(ctx, lb, table_id, args)
@@ -425,7 +456,7 @@ class Updating(commands.Cog):
         if member.bot:
             return
 
-        server_info: ServerConfig = self.bot.config.servers.get(member.guild.id, None)
+        server_info: ServerConfig | None = self.bot.config.servers.get(member.guild.id, None)
         if not server_info:
             return
         for lb in server_info.leaderboards.values():
@@ -433,15 +464,17 @@ class Updating(commands.Cog):
             if player is None:
                 continue
             player_role = member.guild.get_role(lb.player_role_id)
+            if player_role is None:
+                continue
             if member.display_name != player.name:
                 await member.edit(nick=player.name)
             if player.mmr is None:
                 role = member.guild.get_role(lb.placement_role_id)
-                roles_to_add = [role, player_role]
-                await member.add_roles(*roles_to_add)
+            else:
+                rank = lb.get_rank(player.mmr)
+                role = member.guild.get_role(rank.role_id)
+            if role is None:
                 continue
-            rank = lb.get_rank(player.mmr)
-            role = member.guild.get_role(rank.role_id)
             roles_to_add = [role, player_role]
             await member.add_roles(*roles_to_add)
         

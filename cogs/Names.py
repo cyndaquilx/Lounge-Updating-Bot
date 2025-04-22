@@ -13,9 +13,10 @@ class Names(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    name_group = app_commands.Group(name="name", description="Manage nicknames")
+    name_group = app_commands.Group(name="name", description="Manage nicknames", guild_only=True)
 
     async def player_request_name(self, ctx: commands.Context, lb: LeaderboardConfig, name: str):
+        assert ctx.guild is not None
         if check_name_restricted_roles(ctx, ctx.author):
             await ctx.send("You are nickname restricted and cannot use this command")
             return
@@ -51,6 +52,7 @@ class Names(commands.Cog):
         await ctx.send("Your name change request has been sent to staff for approval. Please wait, you will receive a DM when this request is accepted or denied (if you have server member DMs enabled).")
         log_channel = ctx.guild.get_channel(lb.name_request_log_channel)
         if log_channel:
+            assert isinstance(log_channel, discord.TextChannel)
             e = discord.Embed(title="New Name Change Request")
             e.add_field(name="Current Name", value=player.name, inline=False)
             e.add_field(name="New Name", value=name, inline=False)
@@ -64,6 +66,7 @@ class Names(commands.Cog):
         await self.player_request_name(ctx, lb, name)
 
     @app_commands.command(name="requestname")
+    @app_commands.guild_only()
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def request_name_slash(self, interaction: discord.Interaction, name:str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
@@ -71,6 +74,7 @@ class Names(commands.Cog):
         await self.player_request_name(ctx, lb, name)
 
     async def approve_name_change(self, ctx: commands.Context, lb: LeaderboardConfig, old_name: str):
+        assert ctx.guild is not None
         name_request, error = await API.post.acceptNameChange(lb.website_credentials, old_name)
         if not name_request:
             await ctx.send(f"An error occurred approving name change for {old_name}:\n{error}")
@@ -83,12 +87,18 @@ class Names(commands.Cog):
         e.add_field(name="Approved by", value=ctx.author.mention, inline=False)
 
         name_change_log = ctx.guild.get_channel(lb.name_change_log_channel)
-        await name_change_log.send(embed=e)
+        if name_change_log:
+            assert isinstance(name_change_log, discord.TextChannel)
+            await name_change_log.send(embed=e)
         name_request_log = ctx.guild.get_channel(lb.name_request_log_channel)
-        react_msg = await name_request_log.fetch_message(name_request.message_id)
-        if react_msg is not None:
-            CHECK_BOX = "\U00002611"
-            await react_msg.add_reaction(CHECK_BOX)
+        if name_request_log and name_request.message_id:
+            assert isinstance(name_request_log, discord.TextChannel)
+            react_msg = await name_request_log.fetch_message(name_request.message_id)
+            if react_msg is not None:
+                CHECK_BOX = "\U00002611"
+                await react_msg.add_reaction(CHECK_BOX)
+        if not name_request.discord_id:
+            return
         try:
             member = await ctx.guild.fetch_member(name_request.discord_id)
         except:
@@ -172,6 +182,7 @@ class Names(commands.Cog):
         await self.approve_all_name_changes(ctx, lb)
 
     async def reject_name_change(self, ctx: commands.Context, lb: LeaderboardConfig, old_name: str, reason: str | None):
+        assert ctx.guild is not None
         name_request, error = await API.post.rejectNameChange(lb.website_credentials, old_name)
         if name_request is None:
             await ctx.send(f"An error occurred trying to reject name change from {old_name}:\n{error}")
@@ -180,10 +191,12 @@ class Names(commands.Cog):
         name_request_log = ctx.guild.get_channel(lb.name_request_log_channel)
         if not name_request_log:
             return
+        assert isinstance(name_request_log, discord.TextChannel)
         try:
-            react_msg = await name_request_log.fetch_message(name_request.message_id)
-            X_MARK = "\U0000274C"
-            await react_msg.add_reaction(X_MARK)
+            if name_request.message_id:
+                react_msg = await name_request_log.fetch_message(name_request.message_id)
+                X_MARK = "\U0000274C"
+                await react_msg.add_reaction(X_MARK)
         except:
             pass
         e = discord.Embed(title="Name change request denied")
@@ -193,14 +206,15 @@ class Names(commands.Cog):
         if reason:
             e.add_field(name="Reason", value=reason, inline=False)
         await name_request_log.send(embed=e)
-        try:
-            member = await ctx.guild.fetch_member(name_request.discord_id)
-        except:
-            return
-        try:
-            await member.send(f"Your name change request from {name_request.current_name} to {name_request.new_name} has been denied. Reason: {reason}")
-        except Exception as e:
-            pass
+        if name_request.discord_id:
+            try:
+                member = await ctx.guild.fetch_member(name_request.discord_id)
+            except:
+                return
+            try:
+                await member.send(f"Your name change request from {name_request.current_name} to {name_request.new_name} has been denied. Reason: {reason}")
+            except Exception as e:
+                pass
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="rejectName", aliases=['rjn'])
@@ -222,6 +236,7 @@ class Names(commands.Cog):
         await self.reject_name_change(ctx, lb, old_name, reason)
 
     async def update_player_name(self, ctx: commands.Context, lb: LeaderboardConfig, oldName: str, newName: str):
+        assert ctx.guild is not None
         if not await check_valid_name(ctx, lb, newName):
             return
         player = await API.get.getPlayer(lb.website_credentials, oldName)
@@ -230,7 +245,7 @@ class Names(commands.Cog):
             return
         if player.discord_id:
             try:
-                member = await ctx.guild.fetch_member(player.discord_id)
+                member = await ctx.guild.fetch_member(int(player.discord_id))
             except Exception as e:
                 member = None
             if member is not None:
@@ -254,19 +269,21 @@ class Names(commands.Cog):
             await ctx.send(f"An error occurred trying to change the name:\n{error}")
             return
         await ctx.send(f"Name change successful: {player.name} -> {newName}")
-        channel = ctx.guild.get_channel(lb.name_change_log_channel)
-        e = discord.Embed(title="Name changed by staff")
-        e.add_field(name="Current Name", value=player.name)
-        e.add_field(name="New Name", value=newName, inline=False)
-        if player.discord_id:
-            e.add_field(name="Mention", value=f"<@{player.discord_id}>")
-        e.add_field(name="Changed by", value=ctx.author.mention, inline=False)
-        await channel.send(embed=e)
+        name_change_log = ctx.guild.get_channel(lb.name_change_log_channel)
+        if name_change_log:
+            assert isinstance(name_change_log, discord.TextChannel)
+            e = discord.Embed(title="Name changed by staff")
+            e.add_field(name="Current Name", value=player.name)
+            e.add_field(name="New Name", value=newName, inline=False)
+            if player.discord_id:
+                e.add_field(name="Mention", value=f"<@{player.discord_id}>")
+            e.add_field(name="Changed by", value=ctx.author.mention, inline=False)
+            await name_change_log.send(embed=e)
         
         if player.discord_id is None:
             await ctx.send("Player does not have a discord ID on the site, please update their nickname manually")
             return
-        member = ctx.guild.get_member(player.discord_id)
+        member = ctx.guild.get_member(int(player.discord_id))
         if member is None:
             await ctx.send(f"Couldn't find member {player.name}, please change their nickname manually")
             return

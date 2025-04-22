@@ -18,10 +18,7 @@ class Bonus:
         id = body['id']
         season = body['season']
         def parse_date(field_name: str):
-            if field_name in body:
-                return dateutil.parser.isoparse(body[field_name])
-            else:
-                return None
+            return dateutil.parser.isoparse(body[field_name])
         awarded_on = parse_date('awardedOn')
         prev_mmr = body['prevMmr']
         new_mmr = body['newMmr']
