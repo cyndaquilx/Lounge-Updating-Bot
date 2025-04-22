@@ -195,7 +195,7 @@ class Request(commands.Cog):
         user_locale = interaction.locale
         filtered = []
         for penalty_name in penalty_static_info.keys():
-            translation = await translator.translate(locale_str(penalty_name), user_locale)
+            translation = await translator.translate(locale_str(penalty_name), user_locale, None)
             if translation == None:
                 filtered.append(penalty_name)
                 continue

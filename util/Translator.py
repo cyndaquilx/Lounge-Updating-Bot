@@ -94,7 +94,7 @@ class CustomTranslator(app_commands.Translator):
     async def unload(self):
         return
 
-    async def translate(self, string: app_commands.locale_str, locale: discord.Locale) -> Optional[str]:
+    async def translate(self, string: app_commands.locale_str, locale: discord.Locale, context: app_commands.TranslationContext) -> Optional[str]:
         message = string.message
         if locale is discord.Locale.japanese:
             return self.en_to_others.get(message, self.dummy_reply)[0]
