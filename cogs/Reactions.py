@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands, tasks
-from models import ServerConfig
+from models import ServerConfig, UpdatingBot
 
 class Reactions(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: UpdatingBot):
         self.bot = bot
         self.embed_queue: dict[discord.TextChannel, list[discord.Embed]] = {}
 
@@ -32,14 +32,19 @@ class Reactions(commands.Cog):
             return
         if reaction.message.author.bot:
             return
+        if not reaction.message.guild:
+            return
         
-        server_info: ServerConfig = self.bot.config.servers.get(reaction.message.guild.id, None)
+        server_info: ServerConfig | None = self.bot.config.servers.get(reaction.message.guild.id, None)
         if not server_info:
             return
         reaction_channel_id = server_info.reaction_log_channel
+        if reaction_channel_id is None:
+            return
         channel = reaction.message.guild.get_channel(reaction_channel_id)
         if not channel:
             return
+        assert isinstance(channel, discord.TextChannel)
         e = discord.Embed(title="Reaction added")
         e.add_field(name="Message", value=reaction.message.jump_url)
         e.add_field(name="Message Author", value=reaction.message.author.mention)

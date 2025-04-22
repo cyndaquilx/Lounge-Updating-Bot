@@ -1,5 +1,6 @@
 import aiohttp
 from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus, PlayerPlacement
+from typing import Tuple
 
 headers = {'Content-type': 'application/json'}
 
@@ -49,7 +50,7 @@ async def deletePenalty(credentials: WebsiteCredentials, pen_id: int):
                 return True, None
             return False, resp.status
 
-async def createNewPlayer(credentials: WebsiteCredentials, mkcid:int, name, discordid: int | None = None):
+async def createNewPlayer(credentials: WebsiteCredentials, mkcid:int, name, discordid: int | None = None) -> Tuple[Player | None, str | None]:
     request_url = f"{credentials.url}/api/player/create?name={name}"
     if mkcid > 0:
         request_url += f"&mkcid={mkcid}"
@@ -59,12 +60,12 @@ async def createNewPlayer(credentials: WebsiteCredentials, mkcid:int, name, disc
         async with session.post(request_url,headers=headers) as resp:
             if resp.status != 201:
                 error = await resp.text()
-                return False, error
+                return None, error
             body = await resp.json()
             player = Player.from_api_response(body)
-            return True, player
+            return player, None
 
-async def createPlayerWithMMR(credentials: WebsiteCredentials, mkcid:int, mmr:int, name, discordid: int | None = None):
+async def createPlayerWithMMR(credentials: WebsiteCredentials, mkcid:int, mmr:int, name, discordid: int | None = None) -> Tuple[Player | None, str | None]:
     request_url = f"{credentials.url}/api/player/create?name={name}&mmr={mmr}"
     if mkcid > 0:
         request_url += f"&mkcid={mkcid}"
@@ -74,10 +75,10 @@ async def createPlayerWithMMR(credentials: WebsiteCredentials, mkcid:int, mmr:in
         async with session.post(request_url,headers=headers) as resp:
             if resp.status != 201:
                 error = await resp.text()
-                return False, error
+                return None, error
             body = await resp.json()
             player = Player.from_api_response(body)
-            return True, player
+            return player, None
         
 async def placePlayer(credentials: WebsiteCredentials, mmr:int, name:str, force=False):
     request_url = f"{credentials.url}/api/player/placement?name={name}&mmr={mmr}"

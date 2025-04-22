@@ -13,7 +13,7 @@ class Bonuses(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    bonus_group = app_commands.Group(name="bonus", description="Manage bonuses")
+    bonus_group = app_commands.Group(name="bonus", description="Manage bonuses", guild_only=True)
 
     async def give_bonus(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, name: str, reason: str | None):
         player = await API.get.getPlayer(lb.website_credentials, name)
@@ -35,11 +35,13 @@ class Bonuses(commands.Cog):
             e.add_field(name="Reason", value=reason, inline=False)
         await ctx.send(content=f"Successfully added {bonus.amount} MMR bonus to {bonus.player_name}\n{rankChange} (ID: {bonus.id})", embed=e)
 
+        assert ctx.guild is not None
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e, content=rankChange)
         if player.discord_id:
-            member = ctx.guild.get_member(player.discord_id)
+            member = ctx.guild.get_member(int(player.discord_id))
             if not member:
                 return
             try:

@@ -4,6 +4,7 @@ from discord import app_commands
 import logging
 import asyncio
 from util import LeaderboardNotFoundException, GuildNotFoundException, get_config, Translator
+from models import UpdatingBot
 
 config = get_config('./config.json')
 
@@ -16,9 +17,8 @@ intents.members = True
 intents.message_content = True
 intents.reactions = True
 client = discord.Client(intents=intents, application_id = config.application_id)
-bot = commands.Bot(command_prefix=config.get_prefixes(), case_insensitive=True, intents=intents,
+bot = UpdatingBot(config, command_prefix=config.get_prefixes(), case_insensitive=True, intents=intents,
                     tree = app_commands.CommandTree(client))
-bot.config = config
 print(bot.command_prefix)
 
 initial_extensions = ['cogs.Updating', 'cogs.Tables', 'cogs.Admin', 'cogs.Restrictions', 'cogs.Make_table', 'cogs.Players', 
@@ -30,7 +30,7 @@ async def on_ready():
     print("Logged in as {0.user}".format(bot))
 
 @bot.event
-async def on_command_error(ctx, error):
+async def on_command_error(ctx: commands.Context[UpdatingBot], error: commands.CommandError):
     if isinstance(error, commands.CommandNotFound):
         return
     if isinstance(error, commands.MissingRequiredArgument):
@@ -43,7 +43,7 @@ async def on_command_error(ctx, error):
         return
     if isinstance(error, commands.MissingAnyRole):
         await(await ctx.send("You need one of the following roles to use this command: `%s`"
-                             % (", ".join(error.missing_roles)))
+                             % (", ".join([str(r) for r in error.missing_roles])))
               ).delete(delay=10)
         return
     if isinstance(error, commands.BadArgument):
@@ -51,7 +51,7 @@ async def on_command_error(ctx, error):
         return
     if isinstance(error, commands.BotMissingPermissions):
         await(await ctx.send("I need the following permissions to use this command: %s"
-                       % ", ".join(error.missing_perms))).delete(delay=10)
+                       % ", ".join(error.missing_permissions))).delete(delay=10)
         return
     if isinstance(error, commands.NoPrivateMessage):
         await(await ctx.send("You can't use this command in DMs!")).delete(delay=5)
@@ -80,7 +80,7 @@ async def on_app_command_error(interaction:discord.Interaction, error):
         return
     if isinstance(error, app_commands.MissingAnyRole):
         await interaction.response.send_message("You need one of the following roles to use this command: `%s`"
-                             % (", ".join(error.missing_roles)))
+                             % (", ".join([str(r) for r in error.missing_roles])))
         return
     raise error
 

@@ -19,10 +19,7 @@ class Penalty:
         id = body['id']
         season = body['season']
         def parse_date(field_name: str):
-            if field_name in body:
-                return dateutil.parser.isoparse(body[field_name])
-            else:
-                return None
+            return dateutil.parser.isoparse(body[field_name])
         awarded_on = parse_date('awardedOn')
         is_strike = body['isStrike']
         prev_mmr = body['prevMmr']

@@ -8,8 +8,8 @@ class NameChangeRequest:
     current_name: str
     new_name: str
     requested_on: datetime
-    message_id: int
-    discord_id: int
+    message_id: int | None
+    discord_id: int | None
 
     @classmethod
     def from_api_response(cls, body: dict):
@@ -17,10 +17,7 @@ class NameChangeRequest:
         current_name = body['name']
         new_name = body['newName']
         def parse_date(field_name: str):
-            if field_name in body:
-                return dateutil.parser.isoparse(body[field_name])
-            else:
-                return None
+            return dateutil.parser.isoparse(body[field_name])
         requested_on = parse_date('requestedOn')
         message_id = body.get('messageId', None)
         discord_id = body.get('discordId', None)

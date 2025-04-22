@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
-from models import ServerConfig, LeaderboardConfig
+from models import ServerConfig, LeaderboardConfig, UpdatingBot
 from util.Exceptions import GuildNotFoundException
 from discord import app_commands
+from typing import List
 
 # check if user has any roles in the list of IDs
 def check_role_list(member, check_roles):
@@ -62,15 +63,17 @@ def command_check_reporter_roles(ctx):
     error_roles = [ctx.guild.get_role(role).name for role in check_roles if ctx.guild.get_role(role) is not None]
     raise commands.MissingAnyRole(error_roles)
 
-def app_command_check_reporter_roles(interaction: discord.Interaction):
-    server_info: ServerConfig = interaction.client.config.servers.get(interaction.guild_id, None)
+def app_command_check_reporter_roles(interaction: discord.Interaction[UpdatingBot]):
+    if interaction.guild is None:
+        raise GuildNotFoundException
+    server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild.id, None)
     if not server_info:
         raise GuildNotFoundException
     check_roles = (server_info.reporter_roles + server_info.staff_roles + server_info.admin_roles)
     if check_role_list(interaction.user, check_roles):
         return True
-    error_roles = [interaction.guild.get_role(role).name for role in check_roles if interaction.guild.get_role(role) is not None]
-    raise app_commands.MissingAnyRole(error_roles)
+    error_roles: List[str] = [role.name for role_id in check_roles if (role := interaction.guild.get_role(role_id)) is not None]
+    raise app_commands.MissingAnyRole(error_roles) #type: ignore
 
 # command version of check_staff_roles; throws error if false
 def command_check_staff_roles(ctx):
@@ -83,15 +86,17 @@ def command_check_staff_roles(ctx):
     error_roles = [ctx.guild.get_role(role).name for role in check_roles if ctx.guild.get_role(role) is not None]
     raise commands.MissingAnyRole(error_roles)
 
-def app_command_check_staff_roles(interaction: discord.Interaction):
-    server_info: ServerConfig = interaction.client.config.servers.get(interaction.guild_id, None)
+def app_command_check_staff_roles(interaction: discord.Interaction[UpdatingBot]):
+    if interaction.guild is None:
+        raise GuildNotFoundException
+    server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild.id, None)
     if not server_info:
         raise GuildNotFoundException
     check_roles = (server_info.staff_roles + server_info.admin_roles)
     if check_role_list(interaction.user, check_roles):
         return True
-    error_roles = [interaction.guild.get_role(role).name for role in check_roles if interaction.guild.get_role(role) is not None]
-    raise app_commands.MissingAnyRole(error_roles)
+    error_roles: List[str] = [role.name for role_id in check_roles if (role := interaction.guild.get_role(role_id)) is not None]
+    raise app_commands.MissingAnyRole(error_roles) #type: ignore
 
 def command_check_admin_mkc_roles(ctx):
     server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
@@ -103,15 +108,17 @@ def command_check_admin_mkc_roles(ctx):
     error_roles = [ctx.guild.get_role(role).name for role in check_roles if ctx.guild.get_role(role) is not None]
     raise commands.MissingAnyRole(error_roles)
 
-def app_command_check_admin_mkc_roles(interaction: discord.Interaction):
-    server_info: ServerConfig = interaction.client.config.servers.get(interaction.guild_id, None)
+def app_command_check_admin_mkc_roles(interaction: discord.Interaction[UpdatingBot]):
+    if interaction.guild is None:
+        raise GuildNotFoundException
+    server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild.id, None)
     if not server_info:
         raise GuildNotFoundException
     check_roles = (server_info.mkc_roles + server_info.admin_roles)
     if check_role_list(interaction.user, check_roles):
         return True
-    error_roles = [interaction.guild.get_role(role).name for role in check_roles if interaction.guild.get_role(role) is not None]
-    raise app_commands.MissingAnyRole(error_roles)
+    error_roles: List[str] = [role.name for role_id in check_roles if (role := interaction.guild.get_role(role_id)) is not None]
+    raise app_commands.MissingAnyRole(error_roles) #type: ignore
 
 # lounge staff + mkc + admin
 def command_check_all_staff_roles(ctx):
@@ -124,15 +131,17 @@ def command_check_all_staff_roles(ctx):
     error_roles = [ctx.guild.get_role(role).name for role in check_roles if ctx.guild.get_role(role) is not None]
     raise commands.MissingAnyRole(error_roles)
 
-def app_command_check_all_staff_roles(interaction: discord.Interaction):
-    server_info: ServerConfig = interaction.client.config.servers.get(interaction.guild_id, None)
+def app_command_check_all_staff_roles(interaction: discord.Interaction[UpdatingBot]):
+    if interaction.guild is None:
+        raise GuildNotFoundException
+    server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild.id, None)
     if not server_info:
         raise GuildNotFoundException
     check_roles = (server_info.mkc_roles + server_info.staff_roles + server_info.admin_roles)
     if check_role_list(interaction.user, check_roles):
         return True
-    error_roles = [interaction.guild.get_role(role).name for role in check_roles if interaction.guild.get_role(role) is not None]
-    raise app_commands.MissingAnyRole(error_roles)
+    error_roles: List[str] = [role.name for role_id in check_roles if (role := interaction.guild.get_role(role_id)) is not None]
+    raise app_commands.MissingAnyRole(error_roles) #type: ignore
 
 # lounge staff + mkc + admin
 def command_check_admin_roles(ctx):
@@ -145,15 +154,17 @@ def command_check_admin_roles(ctx):
     error_roles = [ctx.guild.get_role(role).name for role in check_roles if ctx.guild.get_role(role) is not None]
     raise commands.MissingAnyRole(error_roles)
 
-def app_command_check_admin_roles(interaction: discord.Interaction):
-    server_info: ServerConfig = interaction.client.config.servers.get(interaction.guild_id, None)
+def app_command_check_admin_roles(interaction: discord.Interaction[UpdatingBot]):
+    if interaction.guild is None:
+        raise GuildNotFoundException
+    server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild.id, None)
     if not server_info:
         raise GuildNotFoundException
     check_roles = server_info.admin_roles
     if check_role_list(interaction.user, check_roles):
         return True
-    error_roles = [interaction.guild.get_role(role).name for role in check_roles if interaction.guild.get_role(role) is not None]
-    raise app_commands.MissingAnyRole(error_roles)
+    error_roles: List[str] = [role.name for role_id in check_roles if (role := interaction.guild.get_role(role_id)) is not None]
+    raise app_commands.MissingAnyRole(error_roles) #type: ignore
 
 async def check_valid_name(ctx: commands.Context, lb: LeaderboardConfig, name: str):
     if len(name) > 16:
@@ -215,7 +226,8 @@ async def yes_no_check(ctx: commands.Context, message: discord.Message):
     
     return True
 
-async def leaderboard_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+async def leaderboard_autocomplete(interaction: discord.Interaction[UpdatingBot], current: str) -> list[app_commands.Choice[str]]:
+    assert interaction.guild_id is not None
     server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild_id, None)
     if not server_info:
         return []

@@ -1,11 +1,15 @@
 import discord
 from discord.ext import commands
-from models import LeaderboardConfig, Player, PlayerBasic
+from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot
 import API.get, API.post
 
-async def give_placement_role(ctx: commands.Context, lb: LeaderboardConfig, player: Player, placeMMR: int):
-    new_role_id = lb.get_rank(placeMMR).role_id
-    new_role = ctx.guild.get_role(new_role_id)
+async def give_placement_role(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: Player, placeMMR: int):
+    assert ctx.guild is not None
+    rank = lb.get_rank(placeMMR)
+    new_role = ctx.guild.get_role(rank.role_id)
+    if not new_role:
+        await ctx.send(f"Rank role {rank.name} with ID {rank.role_id} was not found in this server")
+        return False
     if not player.discord_id:
         await ctx.send("Player does not have a discord ID on the site, please give them one to give them placement roles")
         return False
@@ -24,7 +28,8 @@ async def give_placement_role(ctx: commands.Context, lb: LeaderboardConfig, play
     await ctx.send(f"Managed to find member {member.display_name} and edit their roles")
     return True
 
-async def place_player_with_mmr(ctx: commands.Context, lb: LeaderboardConfig, mmr: int, name: str, force=False):
+async def place_player_with_mmr(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, mmr: int, name: str, force=False):
+    assert ctx.guild is not None
     player, error = await API.post.placePlayer(lb.website_credentials, mmr, name, force=force)
     if player is None:
         await ctx.send(f"An error occurred while trying to place {name}: {error}")
@@ -42,16 +47,21 @@ async def place_player_with_mmr(ctx: commands.Context, lb: LeaderboardConfig, mm
         e.add_field(name="Placed by", value=ctx.author.mention, inline=False)
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
     return True
 
-async def update_roles(ctx: commands.Context, lb: LeaderboardConfig, player: PlayerBasic, oldMMR:int, newMMR:int):
+async def update_roles(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: PlayerBasic, oldMMR: int, newMMR: int) -> str:
+    assert ctx.guild is not None
     old_rank = lb.get_rank(oldMMR)
     new_rank = lb.get_rank(newMMR)
     rank_changes = ""
     if old_rank != new_rank:
         discord_id = int(player.discord_id) if player.discord_id else None
-        member = ctx.guild.get_member(discord_id)
+        if discord_id:
+            member = ctx.guild.get_member(discord_id)
+        else:
+            member = None
         if member is not None:
             memName = member.mention
         else:
@@ -66,10 +76,13 @@ async def update_roles(ctx: commands.Context, lb: LeaderboardConfig, player: Pla
                 await member.add_roles(new_role)
     return rank_changes
 
-async def fix_player_role(ctx: commands.Context, lb: LeaderboardConfig, player: Player | None, member: discord.Member):
+async def fix_player_role(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: Player | None, member: discord.Member):
+    assert ctx.guild is not None
     player_roles: list[discord.Role] = []
     placement_role = ctx.guild.get_role(lb.placement_role_id)
     player_role = ctx.guild.get_role(lb.player_role_id)
+    assert placement_role is not None
+    assert player_role is not None
 
     # get all the player's rank/player roles
     for role in member.roles:
@@ -96,6 +109,7 @@ async def fix_player_role(ctx: commands.Context, lb: LeaderboardConfig, player: 
     else:
         rank = lb.get_rank(player.mmr)
         rank_role = ctx.guild.get_role(rank.role_id)
+        assert rank_role is not None
     
     # if we have a rank role that we shouldn't, remove it
     to_remove: list[discord.Role] = []

@@ -68,7 +68,9 @@ async def create_mmr_table(lb: LeaderboardConfig, table: Table):
                     placement_text = team.rank
                 else:
                     placement_text = ""
-
+                assert score.new_mmr is not None
+                assert score.prev_mmr is not None
+                assert score.delta is not None
                 new_rank = lb.get_rank(score.new_mmr)
                 old_rank = lb.get_rank(score.prev_mmr)
                 promotion_text = ""
@@ -123,6 +125,7 @@ async def create_mmr_table(lb: LeaderboardConfig, table: Table):
                 if score.is_peak:
                     cells[(row_index, 5)].set_text_props(color=peak_mmr_color, fontproperties=FontProperties(weight='bold', style='italic'))
 
+                assert score.new_mmr is not None
                 new_rank = lb.get_rank(score.new_mmr)
                 cells[(row_index, 6)].set_text_props(color=new_rank.color)
                 

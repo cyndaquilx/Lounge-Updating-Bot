@@ -31,6 +31,8 @@ def create_pattern(word: str):
 
 #Return true is the word can be displayed by the bot
 async def check_against_automod_lists(ctx: commands.Context, message: str):
+    if ctx.guild is None:
+        return True
     try:
         rules = await ctx.guild.fetch_automod_rules()
     except:

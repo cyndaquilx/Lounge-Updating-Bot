@@ -13,7 +13,7 @@ class Penalties(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    penalty_group = app_commands.Group(name="penalty", description="Manage penalties")
+    penalty_group = app_commands.Group(name="penalty", description="Manage penalties", guild_only=True)
 
     async def get_strike_history(self, lb: LeaderboardConfig, name: str):
         strikes, _ = await API.get.getStrikes(lb.website_credentials, name)
@@ -55,6 +55,7 @@ class Penalties(commands.Cog):
 
     async def pen_channel(self, ctx: commands.Context, lb: LeaderboardConfig, player: Player, tier: str, reason: str | None, table_id: int | None,
                           amount: int, channel: discord.TextChannel, is_anonymous: bool, is_strike: bool, is_request=False):
+        assert ctx.guild is not None
         pen, error = await API.post.createPenalty(lb.website_credentials, player.name, abs(amount), is_strike)
         if pen is None:
             await ctx.send(f"An error occurred while penalizing {player.name}:\n{error}")
@@ -81,7 +82,8 @@ class Penalties(commands.Cog):
                 e.add_field(name="Strikes", value=strike_str, inline=False)
         rank_change = await update_roles(ctx, lb, player, pen.prev_mmr, pen.new_mmr)
         pen_msg = await channel.send(embed=e, content=rank_change)
-        member = ctx.guild.get_member(player.discord_id)
+        if player.discord_id:
+            member = ctx.guild.get_member(int(player.discord_id))
         if member:
             try:
                 if not is_anonymous:
@@ -96,6 +98,7 @@ class Penalties(commands.Cog):
                 pass
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log:
+            assert isinstance(updating_log, discord.TextChannel)
             if is_anonymous:
                 e.add_field(name="Given by", value=ctx.author.mention)
             else:
@@ -111,7 +114,9 @@ class Penalties(commands.Cog):
                 await ctx.send(f"Added -{abs(amount)} penalty to {pen.player_name} in {pen_msg.jump_url} (ID: {pen.id})")
         return pen.id
 
-    async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], reason: str | None, table_id: int | None, is_anonymous=False, is_strike=False, is_request=False):
+    async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], 
+                          reason: str | None, table_id: int | None, is_anonymous=False, is_strike=False, is_request=False):
+        assert ctx.guild is not None
         tier = tier.upper()
         if tier not in lb.tier_results_channels.keys() and not is_request:
             await ctx.send(f"Your tier is not valid! Valid tiers are: {list(lb.tier_results_channels.keys())}")
@@ -135,8 +140,10 @@ class Penalties(commands.Cog):
                     return [None]
                 players.append(player)
         id_result = []
-        for player in players:
-            id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, is_strike, is_request=is_request))
+        if channel:
+            assert isinstance(channel, discord.TextChannel)
+            for player in players:
+                id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, is_strike, is_request=is_request))
         return id_result
 
     async def parse_and_add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier, args: str, is_anonymous=False, is_strike=False):
@@ -195,6 +202,8 @@ class Penalties(commands.Cog):
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True, is_anonymous=True)
 
     async def delete_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, pen_id: int, reason: str | None):
+        assert isinstance(ctx.channel, discord.TextChannel)
+        assert ctx.guild is not None
         success, error = await API.post.deletePenalty(lb.website_credentials, pen_id)
         if success is True:
             await ctx.send(f"Successfully deleted penalty ID {pen_id}")
@@ -209,6 +218,7 @@ class Penalties(commands.Cog):
             e.add_field(name="Reason", value=reason, inline=False)
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
     @commands.check(command_check_staff_roles)

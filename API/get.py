@@ -107,7 +107,7 @@ async def getPending(credentials: WebsiteCredentials):
             tables = Table.from_list_api_response(body)
             return tables
     
-async def getPlayerList(credentials: WebsiteCredentials):
+async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | None:
     request_url = f"{credentials.url}/api/player/list"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:

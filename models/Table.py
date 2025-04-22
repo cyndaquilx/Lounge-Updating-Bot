@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 import dateutil.parser
-import urllib
+import urllib.parse
 from models.Players import PlayerBasic
 
 @dataclass
@@ -73,7 +73,7 @@ class TableBasic:
     def score_total(self):
         return sum([team.get_team_score() for team in self.teams])
     
-    def get_team(self, name: str) -> TableTeam:
+    def get_team(self, name: str) -> TableTeam | None:
         stripped_name = name.strip().lower()
         for team in self.teams:
             for score in team.scores:
@@ -81,7 +81,7 @@ class TableBasic:
                     return team
         return None
     
-    def get_score(self, name: str) -> TableScore:
+    def get_score(self, name: str) -> TableScore | None:
         stripped_name = name.strip().lower()
         for team in self.teams:
             for score in team.scores:
@@ -89,10 +89,10 @@ class TableBasic:
                     return score
         return None
     
-    def get_score_from_discord(self, discord_id: int) -> TableScore:
+    def get_score_from_discord(self, discord_id: int) -> TableScore | None:
         for team in self.teams:
             for score in team.scores:
-                if int(score.player.discord_id) == discord_id:
+                if score.player.discord_id and int(score.player.discord_id) == discord_id:
                     return score
         return None
     
@@ -123,7 +123,7 @@ class TableBasic:
         teams.sort(reverse=True)
         for i in range(len(teams)):
             if i > 0 and teams[i] == teams[i-1]:
-                teams[i] = teams[i-1].rank
+                teams[i].rank = teams[i-1].rank
             else:
                 teams[i].rank = i+1
         table = cls(size, tier.upper(), teams, author_id, date)
@@ -151,7 +151,7 @@ class Table(TableBasic):
                 return dateutil.parser.isoparse(body[field_name])
             else:
                 return None
-        created_on = parse_date("createdOn")
+        created_on = dateutil.parser.isoparse(body["createdOn"])
         verified_on = parse_date("verifiedOn")
         deleted_on = parse_date("deletedOn")
         table_message_id = None

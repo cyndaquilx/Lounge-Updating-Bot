@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 import dateutil.parser
+import msgspec
 
 @dataclass
 class PlayerBasic:
@@ -26,8 +27,8 @@ class Player(PlayerBasic):
             id = body['id']
         name = body['name']
         discord_id = body.get('discordId', None)
-        if discord_id:
-            discord_id = int(discord_id)
+        if discord_id is not None:
+            discord_id = str(discord_id)
         country_code = body.get('countryCode', None)
         mkc_id = body.get('mkcId', None)
         registry_id = body.get('registryId', None)
@@ -59,10 +60,7 @@ class PlayerMMRChange:
         delta = body['mmrDelta']
         reason = body['reason']
         def parse_date(field_name: str):
-            if field_name in body:
-                return dateutil.parser.isoparse(body[field_name])
-            else:
-                return None
+            return dateutil.parser.isoparse(body[field_name])
         time = parse_date('time')
         score = body.get('score', None)
         partner_scores = body.get('partnerScores', None)
@@ -131,10 +129,7 @@ class PlayerNameChange:
     def from_api_response(cls, body: dict):
         name = body['name']
         def parse_date(field_name: str):
-            if field_name in body:
-                return dateutil.parser.isoparse(body[field_name])
-            else:
-                return None
+            return dateutil.parser.isoparse(body[field_name])
         changed_on = parse_date('changedOn')
         change = cls(name, changed_on)
         return change
@@ -162,24 +157,20 @@ class ListPlayer:
     name: str
     mkc_id: int
     mmr: int | None
-    discord_id: int | None
     events_played: int
-
+    discord_id: int | None = None
+    
     @classmethod
     def from_api_response(cls, body: dict):
-        name = body.get('name')
-        mkc_id = body.get('mkcId')
-        mmr = body.get('mmr', None)
-        discord_id = body.get('discordId', None)
-        events_played = body.get('eventsPlayed')
-        return cls(name, mkc_id, mmr, discord_id, events_played)
+        return msgspec.convert(body, type=cls)
     
     @classmethod
     def from_list_api_response(cls, body: dict):
-        player_list: list[ListPlayer] = []
-        players: list[dict] = body['players']
-        for player in players:
-            player_list.append(ListPlayer.from_api_response(player))
+        #player_list: list[ListPlayer] = []
+        #players: list[dict] = body['players']
+        #for player in players:
+        #    player_list.append(ListPlayer.from_api_response(player))
+        player_list = msgspec.convert(body, type=list[cls])
         return player_list
 
 @dataclass
