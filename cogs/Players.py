@@ -107,12 +107,14 @@ class Players(commands.Cog):
 
     @commands.check(command_check_admin_mkc_roles)
     @commands.command(name="addPlayer", aliases=["add"])
+    @commands.guild_only()
     async def add_player_text(self, ctx, mkc_id:int, member:discord.Member | int, *, name):
         lb = get_leaderboard(ctx)
         await self.add_player(ctx, lb, mkc_id, member, name, None)
 
     @commands.check(command_check_admin_mkc_roles)
     @commands.command(name="addAndPlace", aliases=['apl'])
+    @commands.guild_only()
     async def add_and_place_text(self, ctx, mkcID:int, mmr:int, member:discord.Member | int, *, name):
         lb = get_leaderboard(ctx)
         await self.add_player(ctx, lb, mkcID, member, name, mmr)
@@ -134,6 +136,7 @@ class Players(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="hide")
+    @commands.guild_only()
     async def hide_text(self, ctx, *, name):
         lb = get_leaderboard(ctx)
         await self.hide_player(ctx, lb, name)
@@ -197,6 +200,7 @@ class Players(commands.Cog):
         await ctx.send("Fixed player's roles")
 
     @commands.command(name="fixRole")
+    @commands.guild_only()
     async def fix_role_text(self, ctx, member_str=None):
         if (not check_staff_roles(ctx)) and (member_str is not None):
             await ctx.send("You cannot change other people's roles without a staff role")
@@ -226,6 +230,7 @@ class Players(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="unhide")
+    @commands.guild_only()
     async def unhide_text(self, ctx, *, name):
         lb = get_leaderboard(ctx)
         await self.unhide_player(ctx, lb, name)
@@ -253,6 +258,7 @@ class Players(commands.Cog):
 
     @commands.check(command_check_all_staff_roles)
     @commands.command(name="refresh")
+    @commands.guild_only()
     async def refresh_text(self, ctx, *, name):
         lb = get_leaderboard(ctx)
         await self.refresh_player(ctx, lb, name)
@@ -296,6 +302,7 @@ class Players(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="updateMKC", aliases=['um'])
+    @commands.guild_only()
     async def update_mkc_text(self, ctx, newID:int, *, name):
         lb = get_leaderboard(ctx)
         await self.update_player_mkc(ctx, lb, newID, name)
@@ -325,6 +332,7 @@ class Players(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="place", aliases=['placemmr'])
+    @commands.guild_only()
     async def place_mmr_text(self, ctx, mmr:int, *, name):
         lb = get_leaderboard(ctx)
         await place_player_with_mmr(ctx, lb, mmr, name)
@@ -339,11 +347,13 @@ class Players(commands.Cog):
 
     @commands.check(command_check_admin_mkc_roles)
     @commands.command(name="forcePlace")
+    @commands.guild_only()
     async def force_place_text(self, ctx, mmr:int, *, name):
         lb = get_leaderboard(ctx)
         await place_player_with_mmr(ctx, lb, mmr, name, True)
 
     @commands.command(name='mkcPlayer', aliases=['mkc'])
+    @commands.guild_only()
     async def mkc_search_text(self, ctx, mkcid:int):
         lb = get_leaderboard(ctx)
         player = await API.get.getPlayerFromMKC(lb.website_credentials, mkcid)
@@ -359,6 +369,7 @@ class Players(commands.Cog):
 
     @commands.check(command_check_admin_mkc_roles)
     @commands.command(name="addAllDiscords")
+    @commands.guild_only()
     async def add_all_discords_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         players = await API.get.getPlayerList(lb.website_credentials)

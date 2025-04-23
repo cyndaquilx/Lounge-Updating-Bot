@@ -59,6 +59,7 @@ class Updating(commands.Cog):
     @app_commands.check(app_command_check_staff_roles)
     @app_commands.command(name="pending")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @app_commands.guild_only()
     async def pending_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
