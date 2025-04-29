@@ -150,7 +150,7 @@ class Players(commands.Cog):
         await self.hide_player(ctx, lb, name)
 
     async def update_discord(self, ctx: commands.Context, lb: LeaderboardConfig, discord_id: int, name: str):
-        assert isinstance(ctx.channel, discord.TextChannel)
+        assert isinstance(ctx.channel, Union[discord.TextChannel, discord.Thread])
         assert ctx.guild is not None
         
         player = await API.get.getPlayer(lb.website_credentials, name)

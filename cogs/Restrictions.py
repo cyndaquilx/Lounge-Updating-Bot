@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import json
 from datetime import datetime, timedelta, timezone
-from io import StringIO
+from io import StringIO, BytesIO
 
 from custom_checks import check_chat_restricted_roles, command_check_staff_roles
 from models import ServerConfig, UpdatingBot
@@ -116,7 +116,7 @@ class Restrictions(commands.Cog):
         json.dump(server_allowed_phrases, file, ensure_ascii=False, indent=4)
         file.seek(0)
         file_data = file.getvalue().encode('utf-8')
-        f = discord.File(fp=bytes(file_data), filename="phrases.json")
+        f = discord.File(fp=BytesIO(file_data), filename="phrases.json")
         await ctx.send(file=f)
 
     @commands.check(command_check_staff_roles)
