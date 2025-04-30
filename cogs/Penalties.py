@@ -6,7 +6,7 @@ from models import LeaderboardConfig, Player
 from util import update_roles, get_leaderboard, get_leaderboard_slash
 from custom_checks import app_command_check_staff_roles, command_check_staff_roles
 import custom_checks
-from typing import Optional
+from typing import Optional, Union
 from datetime import timedelta
 
 class Penalties(commands.Cog):
@@ -202,7 +202,7 @@ class Penalties(commands.Cog):
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True, is_anonymous=True)
 
     async def delete_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, pen_id: int, reason: str | None):
-        assert isinstance(ctx.channel, discord.TextChannel)
+        assert isinstance(ctx.channel, Union[discord.TextChannel, discord.Thread])
         assert ctx.guild is not None
         success, error = await API.post.deletePenalty(lb.website_credentials, pen_id)
         if success is True:
