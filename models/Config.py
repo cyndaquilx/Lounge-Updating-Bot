@@ -60,6 +60,7 @@ class LeaderboardConfig:
 class ServerConfig:
     prefixes: dict[str, str]
     reporter_roles: list[int]
+    updater_roles: list[int]
     staff_roles: list[int]
     admin_roles: list[int]
     mkc_roles: list[int]
