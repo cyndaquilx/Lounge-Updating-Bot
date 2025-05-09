@@ -16,7 +16,12 @@ import custom_checks
 from models import LeaderboardConfig, PlayerDetailed, UpdatingBot
 import API.get, API.post
 from datetime import datetime, timedelta, timezone
-from util import get_leaderboard, get_leaderboard_slash
+from util import (
+  get_leaderboard,
+  get_leaderboard_slash,
+  get_leaderboard_interaction,
+)
+from views.Views import RequestButton
 from typing import Optional
 
 NAME_MIN_LENGTH = 2
@@ -326,24 +331,107 @@ class Names(commands.Cog):
 
     @name_group.command(name="request_message")
     @app_commands.check(app_command_check_admin_roles)
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def create_name_request(
-        self, interaction: discord.Interaction, leaderboard: Optional[str]):
+        self, interaction: discord.Interaction):
         """Creates the name request button."""
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        if ctx.channel.id != lb.name_request_channel:
-            await ctx.send(
-                f"You may only use this command in <#{lb.name_request_channel}>"
-            )
-            return
-
         embed = discord.Embed(
             title="Name Change Request",
             description="Please read the guidelines before making a request."
         )
 
-        await ctx.send(embed=embed, view=NameRequestButton(lb))
+        await ctx.send(embed=embed, view=NameRequestButton(
+            label="Request",
+            custom_id="new_name_request"
+        ))
+
+class NameRequestButton(RequestButton):
+    """View for a name request"""
+    async def leaderboard_callback(
+        self,
+        interaction: discord.Interaction[UpdatingBot],
+        leaderboard: str | None):
+        """
+        Sends the name request modal after leaderboard selection
+        if player is eligible to request a new name
+        """
+
+        lb = get_leaderboard_interaction(interaction, leaderboard)
+        player = await API.get.getPlayerDetailsFromDiscord(
+            lb.website_credentials, interaction.user.id
+        ) # type: ignore
+
+        can_request, error_message = await self.validate_name_button_request(
+            interaction,
+            interaction.user,
+            player
+        )
+
+        if not can_request:
+            await interaction.response.send_message(error_message, ephemeral=True)
+            return
+
+        assert player
+        await interaction.response.send_modal(NameRequestModal(player, lb))
+
+    async def validate_name_button_request(
+        self, interaction: discord.Interaction[UpdatingBot],
+        user: User | Member, player: PlayerDetailed | None) -> tuple[bool, str | None]:
+        """Validates whether the user is able to request a name"""
+        validations = {
+            (
+                "Name Restricted players cannot request a new nickname"
+            ): lambda _, __: not app_command_check_name_restricted_roles(interaction),
+            (
+                "Your Discord ID is not linked to a Lounge profile. "
+                "Please open a support ticket"
+            ): lambda _, plyr: plyr
+            is not None,
+            (
+                "Last changed name at {LAST_NAME_CHANGE}. "
+                "You can request a new name "
+                "on {NEXT_NAME_CHANGE}"
+            ): lambda _, plyr: self.eligible_for_name_change(plyr),
+        }
+
+        for error, validation in validations.items():
+            if not validation(user, player):
+                message_context = self.get_message_context(player)
+                return (False, error.format(**message_context))
+
+        return (True, None)
+
+    def get_message_context(self, player: PlayerDetailed | None) -> dict[str, str]:
+        """Returns message context"""
+        msg_context = {}
+        if player is None:
+            return msg_context
+
+        last_name_change_date = player.name_history[0].changed_on
+
+        msg_context.update({
+            "LAST_NAME_CHANGE": format_dt(last_name_change_date, "d"),
+            "NEXT_NAME_CHANGE": format_dt(
+                last_name_change_date + timedelta(days=DAYS_BETWEEN_NAME_CHANGES),
+                "d"
+            )
+        })
+        return msg_context
+
+    def eligible_for_name_change(self, player: PlayerDetailed | None) -> bool:
+        """
+        Returns a boolean if the days elapsed since a player's
+        last name change exceeds the permitted days between changes
+        """
+        if player is None:
+            return False
+
+        last_name_change_date = player.name_history[0].changed_on
+        days_since_last_change = (datetime.now(timezone.utc) - last_name_change_date).days
+        if days_since_last_change < DAYS_BETWEEN_NAME_CHANGES:
+            return False
+
+        return True
 
 class NameRequestModal(discord.ui.Modal, title="Name Change Request"):
     """Name change request modal class"""
@@ -432,92 +520,10 @@ class NameRequestModal(discord.ui.Modal, title="Name Change Request"):
 
         return (True, None)
 
-class NameRequestButton(discord.ui.View):
-    """Name Request Button"""
-    def __init__(self, lb: LeaderboardConfig):
-        super().__init__(timeout=None)
-        self.lb = lb
-
-    @discord.ui.button(label="Request")
-    async def name_request_button(
-        self, interaction: discord.Interaction[UpdatingBot], _: discord.ui.Button):
-        """Button click handler"""
-
-        player = await API.get.getPlayerDetailsFromDiscord(
-            self.lb.website_credentials, interaction.user.id
-        ) # type: ignore
-
-        can_request, error_message = await self.validate_name_button_request(
-            interaction,
-            interaction.user,
-            player
-        )
-
-        if not can_request:
-            await interaction.response.send_message(error_message, ephemeral=True)
-            return
-
-        assert player
-        await interaction.response.send_modal(NameRequestModal(player, self.lb))
-
-    async def validate_name_button_request(
-        self, interaction: discord.Interaction[UpdatingBot],
-        user: User | Member, player: PlayerDetailed | None) -> tuple[bool, str | None]:
-        """Validates whether the user is able to request a name"""
-        validations = {
-            (
-                "Name Restricted players cannot request a new nickname"
-            ): lambda _, __: not app_command_check_name_restricted_roles(interaction),
-            (
-                "Your Discord ID is not linked to a Lounge profile. "
-                "Please open a support ticket"
-            ): lambda _, plyr: plyr
-            is not None,
-            (
-                "Last changed name at {LAST_NAME_CHANGE}. "
-                "You can request a new name "
-                "on {NEXT_NAME_CHANGE}"
-            ): lambda _, plyr: self.eligible_for_name_change(plyr),
-        }
-
-        for error, validation in validations.items():
-            if not validation(user, player):
-                message_context = self.get_message_context(player)
-                return (False, error.format(**message_context))
-
-        return (True, None)
-
-    def get_message_context(self, player: PlayerDetailed | None) -> dict[str, str]:
-        """Returns message context"""
-        msg_context = {}
-        if player is None:
-            return msg_context
-
-        last_name_change_date = player.name_history[0].changed_on
-
-        msg_context.update({
-            "LAST_NAME_CHANGE": format_dt(last_name_change_date, "d"),
-            "NEXT_NAME_CHANGE": format_dt(
-                last_name_change_date + timedelta(days=DAYS_BETWEEN_NAME_CHANGES),
-                "d"
-            )
-        })
-        return msg_context
-
-    def eligible_for_name_change(self, player: PlayerDetailed | None) -> bool:
-        """
-        Returns a boolean if the days elapsed since a player's
-        last name change exceeds the permitted days between changes
-        """
-        if player is None:
-            return False
-
-        last_name_change_date = player.name_history[0].changed_on
-        days_since_last_change = (datetime.now(timezone.utc) - last_name_change_date).days
-        if days_since_last_change < DAYS_BETWEEN_NAME_CHANGES:
-            return False
-
-        return True
-
 async def setup(bot):
     await bot.add_cog(Names(bot))
+    bot.add_view(NameRequestButton(
+        label="Request",
+        custom_id="new_name_request",
+        timeout=None
+    ))
