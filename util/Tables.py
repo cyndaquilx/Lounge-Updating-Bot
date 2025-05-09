@@ -19,7 +19,7 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
         embedded = await ctx.send(content=content, embed=e)
         if not await yes_no_check(ctx, embedded):
             return None
-    
+
     sent_table, error = await API.post.createTable(lb.website_credentials, table)
     if sent_table is None:
         await ctx.send(f"An error occurred trying to send the table to the website!\n{error}")

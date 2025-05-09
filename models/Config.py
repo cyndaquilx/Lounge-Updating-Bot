@@ -17,6 +17,7 @@ class LeaderboardRank:
 
 @dataclass
 class LeaderboardConfig:
+    name: str
     website_credentials: WebsiteCredentials
     placement_role_id: int
     player_role_id: int
@@ -75,6 +76,8 @@ class ServerConfig:
 class BotConfig:
     token: str
     application_id: int
+    db_directory: str
+    db_filename: str
     servers: dict[int, ServerConfig]
     
     def get_prefixes(self):

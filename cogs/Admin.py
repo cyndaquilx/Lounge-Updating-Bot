@@ -91,7 +91,7 @@ class Admin(commands.Cog):
         await ctx.send("Working...")
         for i, member in enumerate(ctx.guild.members):
             player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
-            await fix_player_role(ctx, lb, player, member)
+            await fix_player_role(ctx.guild, lb, player, member)
             if (i+1) % 100 == 0:
                 await ctx.send(f"{i+1}/{member_count}")
         await ctx.send(f"{member_count}/{member_count} - done")

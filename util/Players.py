@@ -76,11 +76,10 @@ async def update_roles(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig
                 await member.add_roles(new_role)
     return rank_changes
 
-async def fix_player_role(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: Player | None, member: discord.Member):
-    assert ctx.guild is not None
+async def fix_player_role(guild: discord.Guild, lb: LeaderboardConfig, player: Player | None, member: discord.Member):
     player_roles: list[discord.Role] = []
-    placement_role = ctx.guild.get_role(lb.placement_role_id)
-    player_role = ctx.guild.get_role(lb.player_role_id)
+    placement_role = guild.get_role(lb.placement_role_id)
+    player_role = guild.get_role(lb.player_role_id)
     assert placement_role is not None
     assert player_role is not None
 
@@ -108,7 +107,7 @@ async def fix_player_role(ctx: commands.Context[UpdatingBot], lb: LeaderboardCon
         rank_role = placement_role
     else:
         rank = lb.get_rank(player.mmr)
-        rank_role = ctx.guild.get_role(rank.role_id)
+        rank_role = guild.get_role(rank.role_id)
         assert rank_role is not None
     
     # if we have a rank role that we shouldn't, remove it

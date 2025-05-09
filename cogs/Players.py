@@ -192,11 +192,12 @@ class Players(commands.Cog):
         await self.update_discord(ctx, lb, member.id, name)
 
     async def fix_member_role(self, ctx: commands.Context, lb: LeaderboardConfig, member: discord.Member):
+        assert ctx.guild is not None
         player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
         if player is None:
             await ctx.send("Player could not be found on lounge site")
             return
-        await fix_player_role(ctx, lb, player, member)
+        await fix_player_role(ctx.guild, lb, player, member)
         await ctx.send("Fixed player's roles")
 
     @commands.command(name="fixRole")

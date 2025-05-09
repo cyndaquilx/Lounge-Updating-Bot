@@ -5,3 +5,5 @@ from .Names import *
 from .Penalties import *
 from .Bonuses import *
 from .UpdatingBot import *
+from .Verification import *
+from .VerificationItems import *
