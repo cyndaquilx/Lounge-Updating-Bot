@@ -7,6 +7,11 @@ class WebsiteCredentials:
     password: str
 
 @dataclass
+class MKCentralCredentials:
+    url: str
+    api_token: str | None
+
+@dataclass
 class LeaderboardRank:
     name: str
     emoji: str
@@ -19,6 +24,7 @@ class LeaderboardRank:
 class LeaderboardConfig:
     name: str
     website_credentials: WebsiteCredentials
+    old_website_credentials: WebsiteCredentials | None # used for mk8dx->mkworld transfer
     placement_role_id: int
     player_role_id: int
     name_change_log_channel: int
@@ -78,6 +84,7 @@ class BotConfig:
     application_id: int
     db_directory: str
     db_filename: str
+    mkc_credentials: MKCentralCredentials
     servers: dict[int, ServerConfig]
     
     def get_prefixes(self):

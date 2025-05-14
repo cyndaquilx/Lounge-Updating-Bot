@@ -5,7 +5,8 @@ verification_requests = """CREATE TABLE IF NOT EXISTS verification_requests(
     mkc_id INTEGER NOT NULL,
     discord_id INTEGER NOT NULL,
     requested_name TEXT NOT NULL,
-    approval_status TEXT NOT NULL
+    approval_status TEXT NOT NULL,
+    reason TEXT
 )"""
 
 all_tables = [verification_requests]

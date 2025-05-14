@@ -58,7 +58,7 @@ async def getPlayerFromLounge(credentials: WebsiteCredentials, lounge_id: int):
             player = Player.from_api_response(body)
             return player
         
-async def getPlayerFromDiscord(credentials: WebsiteCredentials, discord_id):
+async def getPlayerFromDiscord(credentials: WebsiteCredentials, discord_id: int):
     request_url = f"{credentials.url}/api/player?discordId={discord_id}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
