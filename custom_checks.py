@@ -59,7 +59,18 @@ def check_name_restricted_roles(ctx, member):
         return False
     check_roles = (server_info.name_restricted_roles)
     return check_role_list(member, check_roles)
-    
+
+def app_command_check_name_restricted_roles(interaction: discord.Interaction[UpdatingBot]):
+    """App command version of check_name_restricted_roles"""
+    if interaction.guild is None:
+        raise GuildNotFoundException
+    server_info: ServerConfig | None = interaction.client.config.servers.get(
+        interaction.guild.id, None)
+    if not server_info:
+        raise GuildNotFoundException
+    check_roles = server_info.name_restricted_roles
+    return check_role_list(interaction.user, (check_roles))
+
 # command version of check_reporter_roles; throws error if false
 def command_check_reporter_roles(ctx):
     server_info: ServerConfig = ctx.bot.config.servers.get(ctx.guild.id, None)
