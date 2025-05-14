@@ -1,13 +1,32 @@
+import re
 import discord
-from discord import app_commands
+from discord import app_commands, User, Member
 from discord.ext import commands
-from custom_checks import check_name_restricted_roles, check_valid_name, yes_no_check, app_command_check_staff_roles, command_check_staff_roles
+from discord.utils import format_dt
+from custom_checks import (
+  check_name_restricted_roles,
+  check_valid_name,
+  yes_no_check,
+  app_command_check_staff_roles,
+  command_check_staff_roles,
+  app_command_check_admin_roles,
+  app_command_check_name_restricted_roles
+)
 import custom_checks
-from models import LeaderboardConfig
+from models import LeaderboardConfig, PlayerDetailed, UpdatingBot
 import API.get, API.post
 from datetime import datetime, timedelta, timezone
-from util import get_leaderboard, get_leaderboard_slash
+from util import (
+  get_leaderboard,
+  get_leaderboard_slash,
+  get_leaderboard_interaction,
+)
+from views.Views import RequestButton
 from typing import Optional
+
+NAME_MIN_LENGTH = 2
+NAME_MAX_LENGTH = 16
+DAYS_BETWEEN_NAME_CHANGES = 60
 
 class Names(commands.Cog):
     def __init__(self, bot):
@@ -310,5 +329,201 @@ class Names(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_player_name(ctx, lb, old_name, new_name)
 
+    @name_group.command(name="request_message")
+    @app_commands.check(app_command_check_admin_roles)
+    async def create_name_request(
+        self, interaction: discord.Interaction):
+        """Creates the name request button."""
+        ctx = await commands.Context.from_interaction(interaction)
+        embed = discord.Embed(
+            title="Name Change Request",
+            description="Please read the guidelines before making a request."
+        )
+
+        await ctx.send(embed=embed, view=NameRequestButton(
+            label="Request",
+            custom_id="new_name_request"
+        ))
+
+class NameRequestButton(RequestButton):
+    """View for a name request"""
+    async def leaderboard_callback(
+        self,
+        interaction: discord.Interaction[UpdatingBot],
+        leaderboard: str | None):
+        """
+        Sends the name request modal after leaderboard selection
+        if player is eligible to request a new name
+        """
+
+        lb = get_leaderboard_interaction(interaction, leaderboard)
+        player = await API.get.getPlayerDetailsFromDiscord(
+            lb.website_credentials, interaction.user.id
+        ) # type: ignore
+
+        can_request, error_message = await self.validate_name_button_request(
+            interaction,
+            interaction.user,
+            player
+        )
+
+        if not can_request:
+            await interaction.response.send_message(error_message, ephemeral=True)
+            return
+
+        assert player
+        await interaction.response.send_modal(NameRequestModal(player, lb))
+
+    async def validate_name_button_request(
+        self, interaction: discord.Interaction[UpdatingBot],
+        user: User | Member, player: PlayerDetailed | None) -> tuple[bool, str | None]:
+        """Validates whether the user is able to request a name"""
+        validations = {
+            (
+                "Name Restricted players cannot request a new nickname"
+            ): lambda _, __: not app_command_check_name_restricted_roles(interaction),
+            (
+                "Your Discord ID is not linked to a Lounge profile. "
+                "Please open a support ticket"
+            ): lambda _, plyr: plyr
+            is not None,
+            (
+                "Last changed name at {LAST_NAME_CHANGE}. "
+                "You can request a new name "
+                "on {NEXT_NAME_CHANGE}"
+            ): lambda _, plyr: self.eligible_for_name_change(plyr),
+        }
+
+        for error, validation in validations.items():
+            if not validation(user, player):
+                message_context = self.get_message_context(player)
+                return (False, error.format(**message_context))
+
+        return (True, None)
+
+    def get_message_context(self, player: PlayerDetailed | None) -> dict[str, str]:
+        """Returns message context"""
+        msg_context = {}
+        if player is None:
+            return msg_context
+
+        last_name_change_date = player.name_history[0].changed_on
+
+        msg_context.update({
+            "LAST_NAME_CHANGE": format_dt(last_name_change_date, "d"),
+            "NEXT_NAME_CHANGE": format_dt(
+                last_name_change_date + timedelta(days=DAYS_BETWEEN_NAME_CHANGES),
+                "d"
+            )
+        })
+        return msg_context
+
+    def eligible_for_name_change(self, player: PlayerDetailed | None) -> bool:
+        """
+        Returns a boolean if the days elapsed since a player's
+        last name change exceeds the permitted days between changes
+        """
+        if player is None:
+            return False
+
+        last_name_change_date = player.name_history[0].changed_on
+        days_since_last_change = (datetime.now(timezone.utc) - last_name_change_date).days
+        if days_since_last_change < DAYS_BETWEEN_NAME_CHANGES:
+            return False
+
+        return True
+
+class NameRequestModal(discord.ui.Modal, title="Name Change Request"):
+    """Name change request modal class"""
+    def __init__(self, player: PlayerDetailed, lb: LeaderboardConfig):
+        super().__init__()
+        self.player = player
+        self.lb = lb
+
+    name = discord.ui.TextInput(
+      label="Username",
+      required=True,
+      min_length=NAME_MIN_LENGTH,
+      max_length=NAME_MAX_LENGTH,
+      style=discord.TextStyle.short
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Validates the request and returns a response"""
+        name = self.name.value.strip()
+
+        name_valid, error = self.validate_requested_name(name)
+
+        if not name_valid:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        success, request = await API.post.requestNameChange(
+            self.lb.website_credentials,
+            self.player.name,
+            name
+        )
+
+        if success is False:
+            await interaction.response.send_message(
+                f"An error occurred trying to request a name:\n{request}",
+                ephemeral=True
+            )
+            return
+
+        message = (
+            "Your name change request has been sent to staff for approval. "
+            "Please wait, you will receive a DM when this request is accepted "
+            "or denied (if you have server member DMs enabled)."
+        )
+
+        await interaction.response.send_message(
+            message,
+            ephemeral=True
+        )
+        guild = interaction.guild
+        if not guild:
+            return
+
+        log_channel = guild.get_channel(self.lb.name_request_log_channel)
+        if log_channel:
+            assert isinstance(log_channel, discord.TextChannel)
+            embed = discord.Embed(title="New Name Change Request")
+            embed.add_field(name="Current Name", value=self.player.name, inline=False)
+            embed.add_field(name="New Name", value=name, inline=False)
+            log_msg = await log_channel.send(embed=embed)
+            await API.post.setNameChangeMessageId(
+                self.lb.website_credentials,
+                self.player.name,
+                log_msg.id
+            )
+
+    def validate_requested_name(self, name: str):
+        """Validates the requested name"""
+
+        validations = {
+            f"Your name is fewer than {NAME_MIN_LENGTH} characters.": lambda s: len(s) >= 
+            NAME_MIN_LENGTH,
+            f"Your name is longer than {NAME_MAX_LENGTH} characters": lambda s: len(s) <= 
+            NAME_MAX_LENGTH,
+            "Your name contains an invalid character.": lambda s: bool(
+                re.fullmatch(r'^[a-zA-Z0-9\-_. ]*$', s)
+            ),
+            "Your name does not contain at least one letter.": lambda s: bool(
+                re.search(r'[a-zA-Z]', s)
+            )
+        }
+
+        for error, validation in validations.items():
+            if not validation(name):
+                return (False, error)
+
+        return (True, None)
+
 async def setup(bot):
     await bot.add_cog(Names(bot))
+    bot.add_view(NameRequestButton(
+        label="Request",
+        custom_id="new_name_request",
+        timeout=None
+    ))
