@@ -7,4 +7,3 @@ from .Penalties import *
 from .Bonuses import *
 from .UpdatingBot import *
 from .Verification import *
-from .VerificationUI import *

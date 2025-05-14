@@ -6,6 +6,8 @@ from util.Players import fix_player_role
 from util.Verification import get_existing_pending_verification, add_verification, get_user_latest_verification
 from models.Verification import VerificationRequestData
 from mkcentral import searchMKCPlayersByDiscordID
+from views.Views import LeaderboardSelectView
+from util import get_leaderboard_interaction
 
 class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
     def __init__(self, lb: LeaderboardConfig):
@@ -95,6 +97,10 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         await updating_log.send(embed=e)
 
 class VerifyView(discord.ui.View):
+    async def leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
+        lb = get_leaderboard_interaction(interaction, leaderboard)
+        await interaction.response.send_modal(VerifyForm(lb))
+    
     @discord.ui.button(label="Verify", custom_id="verify_button", style=discord.ButtonStyle.green)
     async def verify_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
         assert interaction.guild_id is not None
@@ -102,29 +108,34 @@ class VerifyView(discord.ui.View):
         if not server_config:
             await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
             return
-        leaderboard = next(iter(server_config.leaderboards.values()))
-        await interaction.response.send_modal(VerifyForm(leaderboard))
+        leaderboards = server_config.leaderboards
+        if len(leaderboards) > 1:
+            await interaction.response.send_message(
+                view=LeaderboardSelectView(
+                    leaderboards,
+                    self.leaderboard_callback
+                ),
+                ephemeral=True,
+                delete_after=30
+            )
+        else:
+            leaderboard_name = next(iter(server_config.leaderboards.keys()))
+            await self.leaderboard_callback(interaction, leaderboard_name)
 
-    @discord.ui.button(label="Check Status", custom_id="verify_status_button", style=discord.ButtonStyle.blurple)
-    async def status_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
+    async def status_leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
         assert interaction.guild is not None
-        await interaction.response.defer(ephemeral=True)
-        server_config = interaction.client.config.servers.get(interaction.guild.id, None)
-        if not server_config:
-            await interaction.followup.send("This server cannot be found in the bot config", ephemeral=True)
-            return
-        leaderboard = next(iter(server_config.leaderboards.values()))
-        verification = await get_user_latest_verification(interaction.client.db_wrapper, interaction.guild.id, leaderboard, interaction.user.id)
+        lb = get_leaderboard_interaction(interaction, leaderboard)
+        verification = await get_user_latest_verification(interaction.client.db_wrapper, interaction.guild.id, lb, interaction.user.id)
         if not verification:
             await interaction.followup.send("You do not have a pending verification; use the Verify button to request to be verified.", ephemeral=True)
             return
         # fix role if latest verification is approved
         if verification.approval_status == "approved":
-            discord_check = await API.get.getPlayerFromDiscord(leaderboard.website_credentials, interaction.user.id)
+            discord_check = await API.get.getPlayerFromDiscord(lb.website_credentials, interaction.user.id)
             if discord_check:
                 assert isinstance(interaction.user, discord.Member)
                 await interaction.followup.send("You are already verified in this server!", ephemeral=True)
-                await fix_player_role(interaction.guild, leaderboard, discord_check, interaction.user)
+                await fix_player_role(interaction.guild, lb, discord_check, interaction.user)
                 return
             else:
                 await interaction.followup.send("You have a previously approved verification, but your Discord account is not linked to a Lounge account. Please make a ticket for support.",
@@ -136,3 +147,26 @@ class VerifyView(discord.ui.View):
                                             ephemeral=True)
         elif verification.approval_status == "ticket":
             await interaction.followup.send(f"Please make a ticket to get verified. Reason: {verification.reason}", ephemeral=True)
+        
+    @discord.ui.button(label="Check Status", custom_id="verify_status_button", style=discord.ButtonStyle.blurple)
+    async def status_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
+        assert interaction.guild is not None
+        await interaction.response.defer(ephemeral=True)
+        server_config = interaction.client.config.servers.get(interaction.guild.id, None)
+        if not server_config:
+            await interaction.followup.send("This server cannot be found in the bot config", ephemeral=True)
+            return
+        leaderboards = server_config.leaderboards
+        if len(leaderboards) > 1:
+            await interaction.response.send_message(
+                view=LeaderboardSelectView(
+                    leaderboards,
+                    self.leaderboard_callback
+                ),
+                ephemeral=True,
+                delete_after=30
+            )
+        else:
+            leaderboard_name = next(iter(server_config.leaderboards.keys()))
+            await self.leaderboard_callback(interaction, leaderboard_name)
+        

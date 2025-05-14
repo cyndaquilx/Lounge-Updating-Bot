@@ -515,7 +515,7 @@ class NameRequestModal(discord.ui.Modal, title="Name Change Request"):
 
         return (True, None)
 
-async def setup(bot):
+async def setup(bot: UpdatingBot):
     await bot.add_cog(Names(bot))
     bot.add_view(NameRequestButton(
         label="Request",

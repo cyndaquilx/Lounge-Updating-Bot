@@ -4,6 +4,7 @@ from discord.ui import View, Select, Button
 from discord import SelectOption, Interaction
 from models import LeaderboardConfig, UpdatingBot
 from util.Leaderboards import get_server_config_from_interaction
+import discord
 
 class LeaderboardSelectView(View):
     """
@@ -17,7 +18,6 @@ class LeaderboardSelectView(View):
         self,
         leaderboards: dict[str, LeaderboardConfig],
         callback: Callable[[Interaction[UpdatingBot], str], Awaitable[None]],
-        custom_id: str,
         timeout: int | None = None
     ):
         super().__init__(timeout=timeout)
@@ -30,7 +30,6 @@ class LeaderboardSelectView(View):
         ]
 
         select = Select(
-            custom_id=f"leaderboard_select:{custom_id}",
             placeholder="Select a leaderboard",
             min_values=1,
             max_values=1,
@@ -66,6 +65,7 @@ class RequestButton(View):
         button = Button(
             label=label,
             custom_id=custom_id,
+            style=discord.ButtonStyle.green,
             **kwargs
         )
 
@@ -76,8 +76,7 @@ class RequestButton(View):
                 await interaction.response.send_message(
                     view=LeaderboardSelectView(
                         leaderboards,
-                        self.leaderboard_callback,
-                        custom_id
+                        self.leaderboard_callback
                     ),
                     ephemeral=True,
                     delete_after=30

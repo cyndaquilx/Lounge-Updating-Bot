@@ -1,10 +1,11 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from models import VerifyView, UpdatingBot, LeaderboardConfig, VerificationRequest
+from models import UpdatingBot, LeaderboardConfig, VerificationRequest
 import custom_checks
 from typing import Optional
 from util import get_leaderboard_slash, get_verifications, add_player, update_verification_approvals, get_verification_by_id, get_user_latest_verification
+from views import VerifyView
 
 class Verification(commands.Cog):
     def __init__(self, bot):
