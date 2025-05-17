@@ -5,7 +5,7 @@ from models import UpdatingBot, LeaderboardConfig, VerificationRequest
 import custom_checks
 from typing import Optional
 from util import get_leaderboard_slash, get_verifications, add_player, update_verification_approvals, get_verification_by_id, get_user_latest_verification
-from views import VerifyView
+from views import VerifyView, OldLoungeVerifyView
 
 class Verification(commands.Cog):
     def __init__(self, bot):
@@ -20,6 +20,14 @@ class Verification(commands.Cog):
         e = discord.Embed(title=f"{interaction.guild.name}")
         e.add_field(name="Verify", value="Click the button below to get verified.")
         await interaction.response.send_message(embed=e, view=VerifyView(timeout=None))
+
+    @verify_group.command(name="new_old_lounge_view")
+    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    async def new_old_lounge_verify_view(self, interaction: discord.Interaction):
+        assert interaction.guild is not None
+        e = discord.Embed(title=f"{interaction.guild.name}")
+        e.add_field(name="Verify with MK8DX Lounge Profile", value="Click the button below to get verified.")
+        await interaction.response.send_message(embed=e, view=OldLoungeVerifyView(timeout=None))
 
     @verify_group.command(name="pending")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
@@ -232,3 +240,4 @@ class Verification(commands.Cog):
 async def setup(bot: UpdatingBot):
     await bot.add_cog(Verification(bot))
     bot.add_view(VerifyView(timeout=None))
+    bot.add_view(OldLoungeVerifyView(timeout=None))

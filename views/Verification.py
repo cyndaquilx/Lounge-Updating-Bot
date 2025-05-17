@@ -1,13 +1,11 @@
 import discord
 from models.UpdatingBot import UpdatingBot
 from models.Config import LeaderboardConfig
-import API.get
-from util.Players import fix_player_role
-from util.Verification import get_existing_pending_verification, add_verification, get_user_latest_verification
+import API.get, API.post
 from models.Verification import VerificationRequestData
-from mkcentral import searchMKCPlayersByDiscordID
+from mkcentral import searchMKCPlayersByDiscordID, getMKCPlayerFromID
 from views.Views import LeaderboardSelectView
-from util import get_leaderboard_interaction
+from util import get_leaderboard_interaction, add_player, get_existing_pending_verification, add_verification, get_user_latest_verification, fix_player_role
 
 class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
     def __init__(self, lb: LeaderboardConfig):
@@ -38,7 +36,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         # check if their name is taken on the leaderboard
         name_check = await API.get.getPlayer(self.lb.website_credentials, name)
         if name_check:
-            await interaction.followup.send("Another player has this name on the leaderboard! Please choose another", ephemeral=True)
+            await interaction.followup.send("Another player has this name on the leaderboard! Please choose another.", ephemeral=True)
             return
         
         # find their MKC account from their Discord ID
@@ -170,3 +168,66 @@ class VerifyView(discord.ui.View):
             leaderboard_name = next(iter(server_config.leaderboards.keys()))
             await self.leaderboard_callback(interaction, leaderboard_name)
         
+class OldLoungeVerifyView(discord.ui.View):
+    @discord.ui.button(label="Verify", custom_id="old_lounge_verify_button", style=discord.ButtonStyle.primary)
+    async def verify_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
+        assert interaction.guild is not None
+        await interaction.response.defer(ephemeral=True)
+        server_config = interaction.client.config.servers.get(interaction.guild.id, None)
+        if not server_config:
+            await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
+            return
+        lb = next(iter(server_config.leaderboards.values()))
+        if lb.old_website_credentials is None:
+            await interaction.followup.send("This leaderboard does not have an old website linked to it.", ephemeral=True)
+            return
+        new_lounge_player = await API.get.getPlayerFromDiscord(lb.website_credentials, interaction.user.id)
+        if new_lounge_player:
+            await interaction.followup.send("You are already verified in this server!", ephemeral=True)
+            return
+        old_lounge_player = await API.get.getPlayerFromDiscord(lb.old_website_credentials, interaction.user.id)
+        if not old_lounge_player:
+            await interaction.followup.send("You do not have a Lounge account linked to this Discord account.", ephemeral=True)
+            return
+        if old_lounge_player.is_hidden:
+            await interaction.followup.send("Your MK8DX Lounge profile is hidden! Please make a ticket if you believe this is an error.",
+                                            ephemeral=True)
+            return
+        
+        new_lounge_taken_name = await API.get.getPlayer(lb.website_credentials, old_lounge_player.name)
+        if new_lounge_taken_name:
+            await interaction.followup.send("Your name from the MK8DX Lounge site is already taken on the MKWorld Lounge site! " + 
+                                            "Please make a ticket or use the new player interface (if available)", ephemeral=True)
+            return
+
+        assert old_lounge_player.registry_id is not None
+        mkc_player = await getMKCPlayerFromID(interaction.client.config.mkc_credentials, old_lounge_player.registry_id)
+        if not mkc_player:
+            await interaction.followup.send("An error occurred while searching MKCentral. Please try again later.", ephemeral=True)
+            return
+        print(mkc_player)
+        if not mkc_player.discord or int(mkc_player.discord.discord_id) != interaction.user.id:
+            await interaction.followup.send("Your MKCentral account is not linked to this Discord account! Please link your Discord here: "
+                                            + f"{interaction.client.config.mkc_credentials.url}/registry/players/edit-profile", ephemeral=True)
+            return
+        if mkc_player.is_banned:
+            await interaction.followup.send("You are banned from MKCentral, so you cannot verify. Please make a ticket if you believe this is an error.",
+                                            ephemeral=True)
+            return
+        
+        player, error = await API.post.createNewPlayer(lb.website_credentials, mkc_player.id, old_lounge_player.name, interaction.user.id)
+        if not player:
+            await interaction.followup.send(f"An error occurred when verifying: {error}", ephemeral=True)
+            return
+        
+        assert isinstance(interaction.user, discord.Member)
+        await interaction.followup.send(f"Successfully verified you in {interaction.guild.name}!", ephemeral=True)
+        await fix_player_role(interaction.guild, lb, player, interaction.user)
+        e = discord.Embed(title="Transferred Player from MK8DX Lounge")
+        e.add_field(name="Name", value=player.name)
+        e.add_field(name="MKC ID", value=player.mkc_id)
+        e.add_field(name="Discord", value=interaction.user.mention)
+        updating_log = interaction.guild.get_channel(lb.updating_log_channel)
+        if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
+            await updating_log.send(embed=e)
