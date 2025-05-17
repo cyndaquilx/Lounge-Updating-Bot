@@ -38,7 +38,9 @@ class Names(commands.Cog):
             await ctx.send(f"You may only use this command in <#{lb.name_request_channel}>")
             return
         name = name.strip()
-        if not await check_valid_name(ctx, lb, name):
+        is_valid, error = check_valid_name(lb, name)
+        if not is_valid:
+            await ctx.send(str(error))
             return
         player = await API.get.getPlayerDetailsFromDiscord(lb.website_credentials, ctx.author.id)
         if player is None:
@@ -251,7 +253,9 @@ class Names(commands.Cog):
 
     async def update_player_name(self, ctx: commands.Context, lb: LeaderboardConfig, oldName: str, newName: str):
         assert ctx.guild is not None
-        if not await check_valid_name(ctx, lb, newName):
+        is_valid, error = check_valid_name(lb, newName)
+        if not is_valid:
+            await ctx.send(str(error))
             return
         player = await API.get.getPlayer(lb.website_credentials, oldName)
         if player is None:

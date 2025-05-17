@@ -208,28 +208,22 @@ def app_command_check_admin_roles(interaction: discord.Interaction[UpdatingBot])
     error_roles: List[str] = [role.name for role_id in check_roles if (role := interaction.guild.get_role(role_id)) is not None]
     raise app_commands.MissingAnyRole(error_roles) #type: ignore
 
-async def check_valid_name(ctx: commands.Context, lb: LeaderboardConfig, name: str):
+def check_valid_name(lb: LeaderboardConfig, name: str) -> tuple[bool, str | None]:
     if len(name) > 16:
-        await ctx.send("Names can only be up to 16 characters! Please choose a different name")
-        return False
+        return False, "Names can only be up to 16 characters! Please choose a different name"
     if len(name) < 2:
-        await ctx.send("Names must be at least 2 characters long")
-        return
+        return False, "Names must be at least 2 characters long"
     if name.startswith("_") or name.endswith("_"):
-        await ctx.send("Names cannot start or end with `_` (underscore)")
-        return False
+        return False, "Names cannot start or end with `_` (underscore)"
     if name.startswith(".") or name.endswith("."):
-        await ctx.send("Names cannot start or end with `.` (period)")
-        return False
+        return False, "Names cannot start or end with `.` (period)"
     if not lb.allow_numbered_names and name.isdigit():
-        await ctx.send("Names cannot be all numbers!")
-        return False
+        return False, "Names cannot be all numbers!"
     allowed_characters = 'abcdefghijklmnopqrstuvwxyz._ -1234567890'
     for c in range(len(name)):
         if name[c].lower() not in allowed_characters:
-            await ctx.send(f"The character {name[c]} is not allowed in names!")
-            return False
-    return True
+            return False, f"The character {name[c]} is not allowed in names!"
+    return True, None
 
 # Return true if the input string can be displayed with limited side-effect
 def check_displayable_name(name: str):

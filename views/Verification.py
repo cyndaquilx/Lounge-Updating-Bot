@@ -5,7 +5,8 @@ import API.get, API.post
 from models.Verification import VerificationRequestData
 from mkcentral import searchMKCPlayersByDiscordID, getMKCPlayerFromID
 from views.Views import LeaderboardSelectView
-from util import get_leaderboard_interaction, add_player, get_existing_pending_verification, add_verification, get_user_latest_verification, fix_player_role
+from util import get_leaderboard_interaction, get_existing_pending_verification, add_verification, get_user_latest_verification, fix_player_role
+from custom_checks import check_valid_name
 
 class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
     def __init__(self, lb: LeaderboardConfig):
@@ -25,6 +26,11 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         assert interaction.guild is not None
         name = self.requested_name.value.strip()
         await interaction.response.defer(ephemeral=True)
+
+        is_valid, error = check_valid_name(self.lb, name)
+        if not is_valid:
+            await interaction.followup.send(str(error))
+            return
 
         # check if the user's discord account is already verified, fix their role if so
         discord_check = await API.get.getPlayerFromDiscord(self.lb.website_credentials, interaction.user.id)

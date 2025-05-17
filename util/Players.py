@@ -22,7 +22,9 @@ async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, 
         member_id = member.id
         found_member = member
     name = name.strip()
-    if not await check_valid_name(ctx, lb, name):
+    is_valid, error = check_valid_name(lb, name)
+    if not is_valid:
+        await ctx.send(str(error))
         return False
     
     embedded = None
