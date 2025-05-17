@@ -29,30 +29,34 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         # check if the user's discord account is already verified, fix their role if so
         discord_check = await API.get.getPlayerFromDiscord(self.lb.website_credentials, interaction.user.id)
         if discord_check:
-            await interaction.followup.send("You are already verified in this server!", ephemeral=True)
+            await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
             await fix_player_role(interaction.guild, self.lb, discord_check, interaction.user)
             return
         
         # check if their name is taken on the leaderboard
         name_check = await API.get.getPlayer(self.lb.website_credentials, name)
         if name_check:
-            await interaction.followup.send("Another player has this name on the leaderboard! Please choose another.", ephemeral=True)
+            await interaction.followup.send("Another player has this name on the leaderboard! Please choose another.\nこの名前はすでに別のプレイヤーが使用しています！別の名前を入力してください。", 
+                                            ephemeral=True)
             return
         
         # find their MKC account from their Discord ID
         mkc_check = await searchMKCPlayersByDiscordID(interaction.client.config.mkc_credentials, interaction.user.id)
         if mkc_check is None:
-            await interaction.followup.send("An error occurred while searching MKCentral. Please try again later.", ephemeral=True)
+            await interaction.followup.send("An error occurred while searching MKCentral. Please try again later.\nMKCentralの検索中にエラーが発生しました。後でもう一度お試しください。",
+                                            ephemeral=True)
             return
         if not mkc_check.player_count:
-            await interaction.followup.send(f"Your Discord ID is not linked with an MKCentral account. Please make an account at {interaction.client.config.mkc_credentials.url}, link your Discord account to it and try again.",
+            await interaction.followup.send(f"Your Discord ID is not linked with an MKCentral account. Please make an account at {interaction.client.config.mkc_credentials.url}, link your Discord account to it and try again."
+                                            + f"\nあなたのDiscord IDはMKCentralアカウントに登録されていません。{interaction.client.config.mkc_credentials.url} にてアカウントを作成し、Discordアカウントを登録してから再度お試しください。",
                                             ephemeral=True)
             return
         
         # prevent banned players from verifying
         mkc_player = mkc_check.player_list[0]
         if mkc_player.is_banned:
-            await interaction.followup.send("You are banned from MKCentral and cannot request to be verified. If you believe this to be a mistake, please create a ticket.",
+            await interaction.followup.send("You are banned from MKCentral and cannot request to be verified. If you believe this to be a mistake, please create a ticket." +
+                                            "\nあなたはMKCentralからBANされているため、認証をリクエストすることができません。これが誤りだと思われる場合は、チケットを作成してください。",
                                             ephemeral=True)
             return
         
@@ -60,7 +64,8 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         mkc_id = mkc_check.player_list[0].id
         mkc_id_check = await API.get.getPlayerFromMKC(self.lb.website_credentials, mkc_id)
         if mkc_id_check:
-            await interaction.followup.send("Your MKCentral account is linked to a Lounge profile, but your Lounge profile has a different Discord account linked to it. Please create a ticket for assistance.",
+            await interaction.followup.send("Your MKCentral account is linked to a Lounge profile, but your Lounge profile has a different Discord account linked to it. Please create a ticket for assistance."
+                                            + "\nあなたのMKCentralアカウントは既にLoungeに登録されていますが、このアカウントとは異なるDiscord Idが登録されています。サポートチケットを作成してください。",
                                             ephemeral=True)
             return
         
@@ -69,17 +74,20 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         existing_request = await get_existing_pending_verification(interaction.client.db_wrapper, request_data)
         if existing_request:
             if existing_request.discord_id == interaction.user.id:
-                await interaction.followup.send("You have already requested to be verified! Please wait for a staff member to view your request.", ephemeral=True)
+                await interaction.followup.send("You have already requested to be verified! Please wait for a staff member to view your request." +
+                                                "\nあなたは既に認証をリクエストを完了しています。スタッフが確認するまでお待ちください。", ephemeral=True)
             else:
-                await interaction.followup.send("Another player has already requested to be verified with this name! Please choose another name.", ephemeral=True)
+                await interaction.followup.send("Another player has already requested to be verified with this name! Please choose another name." +
+                                                "\n既に別のプレイヤーがこの名前で認証リクエストをしています！別の名前を入力してください。", ephemeral=True)
             return
         
         # add the player's verification request to the db
         verification_id = await add_verification(interaction.client.db_wrapper, request_data)
         if verification_id is None:
-            await interaction.followup.send("An error occurred when sending your request. Try again later.")
+            await interaction.followup.send("An error occurred when sending your request. Try again later.\n認証リクエストの送信中にエラーが発生しました。後でもう一度お試しください。")
             return
-        await interaction.followup.send("Sent your data in for verification! It may take 24-48 hours to get verified, so please be patient.", ephemeral=True)
+        await interaction.followup.send("Sent your data in for verification! It may take 24-48 hours to get verified, so please be patient." +
+                                        "\n認証用データを送信しました！認証には24〜48時間かかる場合がありますので、しばらくお待ちください。", ephemeral=True)
 
         # send new verification to updating log
         updating_log = interaction.guild.get_channel(self.lb.updating_log_channel)
@@ -125,26 +133,31 @@ class VerifyView(discord.ui.View):
         lb = get_leaderboard_interaction(interaction, leaderboard)
         verification = await get_user_latest_verification(interaction.client.db_wrapper, interaction.guild.id, lb, interaction.user.id)
         if not verification:
-            await interaction.followup.send("You do not have a pending verification; use the Verify button to request to be verified.", ephemeral=True)
+            await interaction.followup.send("You do not have a pending verification; use the Verify button to request to be verified." +
+                                            "\n保留中の認証リクエストはありません。「認証」ボタンを使ってリクエストしてください。", ephemeral=True)
             return
         # fix role if latest verification is approved
         if verification.approval_status == "approved":
             discord_check = await API.get.getPlayerFromDiscord(lb.website_credentials, interaction.user.id)
             if discord_check:
                 assert isinstance(interaction.user, discord.Member)
-                await interaction.followup.send("You are already verified in this server!", ephemeral=True)
+                await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
                 await fix_player_role(interaction.guild, lb, discord_check, interaction.user)
                 return
             else:
-                await interaction.followup.send("You have a previously approved verification, but your Discord account is not linked to a Lounge account. Please make a ticket for support.",
+                await interaction.followup.send("You have a previously approved verification, but your Discord account is not linked to a Lounge account. Please make a ticket for support."
+                                                + "\n既に認証済みですが、このDiscord アカウントは過去認証に使用されたDiscordアカウントと異なります。サポートチケットを作成して下さい。",
                                                 ephemeral=True)
         elif verification.approval_status == "pending":
-            await interaction.followup.send("Your verification is still pending; please wait for a staff member to approve it.", ephemeral=True)
+            await interaction.followup.send("Your verification is still pending; please wait for a staff member to approve it." +
+                                            "\nあなたの認証はまだ保留中です。スタッフの承認をお待ちください。", ephemeral=True)
         elif verification.approval_status == "denied":
-            await interaction.followup.send(f"Your verification request has been denied; please make a ticket if you need more information. Reason: {verification.reason}",
+            await interaction.followup.send(f"Your verification request has been denied; please make a ticket if you need more information. Reason: {verification.reason}"
+                                            + f"\nあなたの認証リクエストは拒否されました。詳細が必要な場合はチケットを作成してください。理由： {verification.reason}",
                                             ephemeral=True)
         elif verification.approval_status == "ticket":
-            await interaction.followup.send(f"Please make a ticket to get verified. Reason: {verification.reason}", ephemeral=True)
+            await interaction.followup.send(f"Please make a ticket to get verified. Reason: {verification.reason}" +
+                                            f"\n認証を受けるにはチケットを作成してください。理由： {verification.reason}", ephemeral=True)
         
     @discord.ui.button(label="Check Status", custom_id="verify_status_button", style=discord.ButtonStyle.blurple)
     async def status_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
@@ -159,14 +172,14 @@ class VerifyView(discord.ui.View):
             await interaction.response.send_message(
                 view=LeaderboardSelectView(
                     leaderboards,
-                    self.leaderboard_callback
+                    self.status_leaderboard_callback
                 ),
                 ephemeral=True,
                 delete_after=30
             )
         else:
             leaderboard_name = next(iter(server_config.leaderboards.keys()))
-            await self.leaderboard_callback(interaction, leaderboard_name)
+            await self.status_leaderboard_callback(interaction, leaderboard_name)
         
 class OldLoungeVerifyView(discord.ui.View):
     @discord.ui.button(label="Verify", custom_id="old_lounge_verify_button", style=discord.ButtonStyle.primary)

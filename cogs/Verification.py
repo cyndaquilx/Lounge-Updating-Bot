@@ -134,7 +134,8 @@ class Verification(commands.Cog):
         if not found_member:
             await ctx.send("Could not find member in this server, so denial DM was not sent")
             return
-        denial_msg = f"Your request to be verified in {interaction.guild.name} was denied. Reason: {reason}"
+        denial_msg = (f"Your request to be verified in {interaction.guild.name} was denied. Reason: {reason}" +
+            f"\n{interaction.guild.name} へのあなたの認証リクエストは拒否されました。理由： {reason}")
         try:
             await found_member.send(denial_msg)
             await ctx.send("Successfully sent DM to member")
@@ -176,7 +177,8 @@ class Verification(commands.Cog):
         if not found_member:
             await ctx.send("Could not find member in this server, so denial DM was not sent")
             return
-        denial_msg = f"Update to your verification request in {interaction.guild.name}: Please make a ticket to get verified. Reason: {reason}"
+        denial_msg = (f"Update to your verification request in {interaction.guild.name}: Please make a ticket to get verified. Reason: {reason}"
+                      + f"\n{interaction.guild.name} への認証リクエストに関する連絡：認証を受けるにはチケットを作成してください。理由：{reason}")
         try:
             await found_member.send(denial_msg)
             await ctx.send("Successfully sent DM to member")
