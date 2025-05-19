@@ -276,7 +276,7 @@ class Players(commands.Cog):
             await ctx.send("The player couldn't be found!")
             return
         player_url = f"{lb.website_credentials.url}/PlayerDetails/{player.id}"
-        mkc_url = f"https://mkcentral.com/registry/players/profile?id={player.mkc_id}/"
+        mkc_url = f"https://mkcentral.com/registry/players/profile?id={player.mkc_id}"
         mkc_field = f"[{player.mkc_id}]({mkc_url})"
         e = discord.Embed(title="Player Data", url=player_url, description=player.name)
         e.add_field(name="MKC ID", value=mkc_field)
