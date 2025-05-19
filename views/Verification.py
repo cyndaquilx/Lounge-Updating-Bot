@@ -75,6 +75,11 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
                                             ephemeral=True)
             return
         
+        valid_fcs = list(filter(lambda f: f.type == "switch", mkc_player.friend_codes))
+        if not len(valid_fcs):
+            await interaction.followup.send("You must have at least 1 Switch FC to be verified!", ephemeral=True)
+            return
+        
         # check if player has already requested to be verified, or if another player requested to be verified with the same name
         request_data = VerificationRequestData(interaction.guild.id, self.lb.name, mkc_id, interaction.user.id, name, "pending")
         existing_request = await get_existing_pending_verification(interaction.client.db_wrapper, request_data)
