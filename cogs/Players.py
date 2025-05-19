@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from models import LeaderboardConfig
+from models import LeaderboardConfig, UpdatingBot
 import API.get, API.post
 from custom_checks import yes_no_check, command_check_admin_mkc_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
@@ -269,14 +269,14 @@ class Players(commands.Cog):
 
     @commands.command(name='mkcPlayer', aliases=['mkc'])
     @commands.guild_only()
-    async def mkc_search_text(self, ctx, mkcid:int):
+    async def mkc_search_text(self, ctx: commands.Context[UpdatingBot], mkcid:int):
         lb = get_leaderboard(ctx)
         player = await API.get.getPlayerFromMKC(lb.website_credentials, mkcid)
         if player is None:
             await ctx.send("The player couldn't be found!")
             return
         player_url = f"{lb.website_credentials.url}/PlayerDetails/{player.id}"
-        mkc_url = f"https://www.mariokartcentral.com/forums/index.php?members/{player.mkc_id}/"
+        mkc_url = f"https://mkcentral.com/registry/players/profile?id={player.mkc_id}/"
         mkc_field = f"[{player.mkc_id}]({mkc_url})"
         e = discord.Embed(title="Player Data", url=player_url, description=player.name)
         e.add_field(name="MKC ID", value=mkc_field)
