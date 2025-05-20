@@ -46,7 +46,7 @@ async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, 
     else:
         player, error = await API.post.createNewPlayer(lb.website_credentials, mkcID, name, member_id)
     if player is None:
-        await ctx.send(f"An error occurred while trying to add the player: {error}")
+        await ctx.send(f"An error occurred while trying to verify player {name}: {error}")
         return False
     
     roleGiven = ""
@@ -98,10 +98,10 @@ async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, 
     if mmr is not None:
         e.add_field(name="MMR", value=mmr)
     e.add_field(name="Added by", value=ctx.author.mention, inline=False)
-    updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-    if updating_log is not None:
-        assert isinstance(updating_log, discord.TextChannel)
-        await updating_log.send(embed=e)
+    verification_log = ctx.guild.get_channel(lb.verification_log_channel)
+    if verification_log is not None:
+        assert isinstance(verification_log, discord.TextChannel)
+        await verification_log.send(embed=e)
     return True
 
 async def give_placement_role(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: Player, placeMMR: int):

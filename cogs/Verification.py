@@ -91,6 +91,9 @@ class Verification(commands.Cog):
             add_success = await add_player(ctx, lb, verification.mkc_id, verification.discord_id, verification.requested_name, None, confirm=False)
             if add_success:
                 successes.append(verification.id)
+                await ctx.send(f"Successfully approved verification ID {verification.id}")
+            else:
+                await ctx.send(f"Failed to approve verification ID {verification.id}")
         await update_verification_approvals(ctx.bot.db_wrapper, verification.guild_id, lb, "approved", successes)
         return successes
 
@@ -112,11 +115,7 @@ class Verification(commands.Cog):
         if verification.approval_status == "approved":
             await ctx.send("Verification is already approved")
             return
-        success = await self.approve_verifications(ctx, lb, [verification])
-        if len(success):
-            await ctx.send("Successfully approved the verification")
-        else:
-            await ctx.send("Failed to approve the verification")
+        await self.approve_verifications(ctx, lb, [verification])
 
     @verify_group.command(name="approve_all")
     @app_commands.choices(
@@ -149,13 +148,13 @@ class Verification(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         verification = await get_verification_by_id(interaction.client.db_wrapper, interaction.guild.id, lb, id)
         if not verification:
-            await ctx.send("Verification with that ID not found")
+            await ctx.send(f"Verification ID {id} not found")
             return
         if verification.approval_status == "denied":
-            await ctx.send("Verification is already denied")
+            await ctx.send(f"Verification ID {id} is already denied")
             return
         if verification.approval_status == "approved":
-            await ctx.send("Verification is already approved")
+            await ctx.send(f"Verification ID {id} is already approved")
             return
         await update_verification_approvals(interaction.client.db_wrapper, interaction.guild.id, lb, "denied", [verification.id], reason)
         found_member = interaction.guild.get_member(verification.discord_id)
@@ -169,7 +168,7 @@ class Verification(commands.Cog):
             await ctx.send("Successfully sent DM to member")
         except:
             await ctx.send("Member does not accept DMs from the bot, so denial DM was not sent")
-        await ctx.send(f"Successfully denied verification")
+        await ctx.send(f"Successfully denied verification ID {verification.id}")
 
         # send denied verification to updating log
         verification_log = interaction.guild.get_channel(lb.verification_log_channel)
@@ -196,10 +195,10 @@ class Verification(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         verification = await get_verification_by_id(interaction.client.db_wrapper, interaction.guild.id, lb, id)
         if not verification:
-            await ctx.send("Verification with that ID not found")
+            await ctx.send(f"Verification ID {id} not found")
             return
         if verification.approval_status != "pending":
-            await ctx.send("Verification is not pending")
+            await ctx.send(f"Verification ID {id} is not pending")
             return
         await update_verification_approvals(interaction.client.db_wrapper, interaction.guild.id, lb, "ticket", [verification.id], reason)
         found_member = interaction.guild.get_member(verification.discord_id)
@@ -213,7 +212,7 @@ class Verification(commands.Cog):
             await ctx.send("Successfully sent DM to member")
         except:
             await ctx.send("Member does not accept DMs from the bot, so DM was not sent")
-        await ctx.send(f"Successfully updated verification status")
+        await ctx.send(f"Successfully set verification ID {id} status to ticket")
 
         # send denied verification to updating log
         verification_log = interaction.guild.get_channel(lb.verification_log_channel)
