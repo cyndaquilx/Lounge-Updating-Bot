@@ -29,7 +29,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
 
         is_valid, error = check_valid_name(self.lb, name)
         if not is_valid:
-            await interaction.followup.send(str(error))
+            await interaction.followup.send(str(error), ephemeral=True)
             return
 
         # check if the user's discord account is already verified, fix their role if so
