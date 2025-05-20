@@ -31,6 +31,7 @@ class LeaderboardConfig:
     name_request_log_channel: int
     name_request_channel: int
     updating_log_channel: int
+    verification_log_channel: int
     mute_ban_list_channel: int
     quick_start_channel: int
     players_per_mogi: int

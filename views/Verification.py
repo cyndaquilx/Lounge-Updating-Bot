@@ -101,17 +101,17 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
                                         "\n認証用データを送信しました！認証には24〜48時間かかる場合がありますので、しばらくお待ちください。", ephemeral=True)
 
         # send new verification to updating log
-        updating_log = interaction.guild.get_channel(self.lb.updating_log_channel)
-        if not updating_log:
+        verification_log = interaction.guild.get_channel(self.lb.verification_log_channel)
+        if not verification_log:
             return
-        assert isinstance(updating_log, discord.TextChannel)
+        assert isinstance(verification_log, discord.TextChannel)
         e = discord.Embed(title="New Verification Request")
         e.add_field(name="ID", value=verification_id)
         e.add_field(name="Leaderboard", value=self.lb.name)
         e.add_field(name="Requested Name", value=request_data.requested_name, inline=False)
         e.add_field(name="MKC ID", value=f"[{request_data.mkc_id}]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={request_data.mkc_id})")
         e.add_field(name="Mention", value=interaction.user.mention)
-        await updating_log.send(embed=e)
+        await verification_log.send(embed=e)
 
 class VerifyView(discord.ui.View):
     async def leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
@@ -251,7 +251,7 @@ class OldLoungeVerifyView(discord.ui.View):
         e.add_field(name="Name", value=player.name)
         e.add_field(name="MKC ID", value=player.mkc_id)
         e.add_field(name="Discord", value=interaction.user.mention)
-        updating_log = interaction.guild.get_channel(lb.updating_log_channel)
-        if updating_log is not None:
-            assert isinstance(updating_log, discord.TextChannel)
-            await updating_log.send(embed=e)
+        verification_log = interaction.guild.get_channel(lb.verification_log_channel)
+        if verification_log is not None:
+            assert isinstance(verification_log, discord.TextChannel)
+            await verification_log.send(embed=e)

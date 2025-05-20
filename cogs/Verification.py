@@ -144,10 +144,10 @@ class Verification(commands.Cog):
         await ctx.send(f"Successfully denied verification")
 
         # send denied verification to updating log
-        updating_log = interaction.guild.get_channel(lb.updating_log_channel)
-        if not updating_log:
+        verification_log = interaction.guild.get_channel(lb.verification_log_channel)
+        if not verification_log:
             return
-        assert isinstance(updating_log, discord.TextChannel)
+        assert isinstance(verification_log, discord.TextChannel)
         e = discord.Embed(title="Verification Request Denied")
         e.add_field(name="ID", value=verification.id)
         e.add_field(name="Leaderboard", value=lb.name)
@@ -156,7 +156,7 @@ class Verification(commands.Cog):
         e.add_field(name="Mention", value=interaction.user.mention)
         e.add_field(name="Denied by", value=ctx.author.mention, inline=False)
         e.add_field(name="Reason", value=reason, inline=False)
-        await updating_log.send(embed=e)
+        await verification_log.send(embed=e)
 
     @verify_group.command(name="request_ticket")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
@@ -187,10 +187,10 @@ class Verification(commands.Cog):
         await ctx.send(f"Successfully updated verification status")
 
         # send denied verification to updating log
-        updating_log = interaction.guild.get_channel(lb.updating_log_channel)
-        if not updating_log:
+        verification_log = interaction.guild.get_channel(lb.verification_log_channel)
+        if not verification_log:
             return
-        assert isinstance(updating_log, discord.TextChannel)
+        assert isinstance(verification_log, discord.TextChannel)
         e = discord.Embed(title="Requested Ticket for Verification Request")
         e.add_field(name="ID", value=verification.id)
         e.add_field(name="Leaderboard", value=lb.name)
@@ -199,7 +199,7 @@ class Verification(commands.Cog):
         e.add_field(name="Mention", value=interaction.user.mention)
         e.add_field(name="Handled by", value=ctx.author.mention, inline=False)
         e.add_field(name="Reason", value=reason, inline=False)
-        await updating_log.send(embed=e)
+        await verification_log.send(embed=e)
 
     async def send_verification_info(self, ctx: commands.Context[UpdatingBot], verification: VerificationRequest):
         e = discord.Embed(title="Verification Request")
