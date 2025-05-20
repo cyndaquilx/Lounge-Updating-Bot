@@ -81,7 +81,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
             return
         
         # check if player has already requested to be verified, or if another player requested to be verified with the same name
-        request_data = VerificationRequestData(interaction.guild.id, self.lb.name, mkc_id, interaction.user.id, name, "pending")
+        request_data = VerificationRequestData(interaction.guild.id, self.lb.name, mkc_id, interaction.user.id, name, "pending", mkc_player.country_code)
         existing_request = await get_existing_pending_verification(interaction.client.db_wrapper, request_data)
         if existing_request:
             if existing_request.discord_id == interaction.user.id:

@@ -154,5 +154,26 @@ class Admin(commands.Cog):
         await ctx.bot.tree.sync()
         await ctx.send("synced")
 
+    @commands.command()
+    @commands.is_owner()
+    async def table_fix(self, ctx: commands.Context[UpdatingBot]):
+        async with ctx.bot.db_wrapper.connect() as db:
+            await db.executescript("""CREATE TABLE IF NOT EXISTS verification_requests_new(
+                    id INTEGER PRIMARY KEY,
+                    guild_id INTEGER NOT NULL,
+                    leaderboard TEXT NOT NULL,
+                    mkc_id INTEGER NOT NULL,
+                    discord_id INTEGER NOT NULL,
+                    requested_name TEXT NOT NULL,
+                    approval_status TEXT NOT NULL,
+                    reason TEXT,
+                    country_code TEXT
+                );
+                INSERT INTO verification_requests_new(id, guild_id, leaderboard, mkc_id, discord_id, requested_name, approval_status, reason) SELECT id, guild_id, leaderboard, mkc_id, discord_id, requested_name, approval_status, reason FROM verification_requests;
+                DROP TABLE verification_requests;
+                ALTER TABLE verification_requests_new RENAME TO verification_requests;""")
+            await db.commit()
+        await ctx.send("done")
+
 async def setup(bot):
     await bot.add_cog(Admin(bot))

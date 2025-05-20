@@ -30,19 +30,26 @@ class Verification(commands.Cog):
         await interaction.response.send_message(embed=e, view=OldLoungeVerifyView(timeout=None))
 
     @verify_group.command(name="pending")
+    @app_commands.choices(
+        countries=[
+            app_commands.Choice(name="Non-Japanese", value="West"),
+            app_commands.Choice(name="Japanese", value="JP"),
+            app_commands.Choice(name="All", value="All")
+        ]
+    )
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
-    async def pending_verifications(self, interaction: discord.Interaction[UpdatingBot], leaderboard: Optional[str]):
+    async def pending_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending")
+        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending", countries.value)
         if not len(verifications):
             await ctx.send("There are no pending verification requests")
             return
         msg = f"### {len(verifications)} Pending Requests"
         for v in verifications:
-            curr_line = f"\n\tID: {v.id} | {v.leaderboard} | Name: {v.requested_name} | [MKC Profile]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={v.mkc_id}) | <@{v.discord_id}>"
+            curr_line = f"\n\tID: {v.id} | {v.leaderboard} | Country: {v.country_code} | Name: {v.requested_name} | [MKC Profile]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={v.mkc_id}) | <@{v.discord_id}>"
             if len(msg) + len(curr_line) > 2000:
                 await ctx.send(msg)
                 msg = ""
@@ -51,19 +58,26 @@ class Verification(commands.Cog):
             await ctx.send(msg)
 
     @verify_group.command(name="pending_tickets")
+    @app_commands.choices(
+        countries=[
+            app_commands.Choice(name="Non-Japanese", value="West"),
+            app_commands.Choice(name="Japanese", value="JP"),
+            app_commands.Choice(name="All", value="All")
+        ]
+    )
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
-    async def pending_ticket_verifications(self, interaction: discord.Interaction[UpdatingBot], leaderboard: Optional[str]):
+    async def pending_ticket_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "ticket")
+        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "ticket", countries.value)
         if not len(verifications):
             await ctx.send("There are no verification requests with pending tickets")
             return
         msg = f"### {len(verifications)} Verification Ticket Requests"
         for v in verifications:
-            curr_line = f"\n\tID: {v.id} | {v.leaderboard} | Name: {v.requested_name} | [MKC Profile]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={v.mkc_id}) | <@{v.discord_id}>"
+            curr_line = f"\n\tID: {v.id} | {v.leaderboard} | Country: {v.country_code} | Name: {v.requested_name} | [MKC Profile]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={v.mkc_id}) | <@{v.discord_id}>"
             if len(msg) + len(curr_line) > 2000:
                 await ctx.send(msg)
                 msg = ""
@@ -100,13 +114,20 @@ class Verification(commands.Cog):
         await ctx.send("Successfully approved the verification")
 
     @verify_group.command(name="approve_all")
+    @app_commands.choices(
+        countries=[
+            app_commands.Choice(name="Non-Japanese", value="West"),
+            app_commands.Choice(name="Japanese", value="JP"),
+            app_commands.Choice(name="All", value="All")
+        ]
+    )
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
-    async def approve_all_pending_verifications(self, interaction: discord.Interaction[UpdatingBot], leaderboard: Optional[str]):
+    async def approve_all_pending_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending")
+        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending", countries.value)
         if not len(verifications):
             await ctx.send("There are no pending verification requests")
         await self.approve_verifications(ctx, lb, verifications)
@@ -206,6 +227,7 @@ class Verification(commands.Cog):
         e.add_field(name="ID", value=verification.id)
         e.add_field(name="Leaderboard", value=verification.leaderboard)
         e.add_field(name="Requested Name", value=verification.requested_name, inline=False)
+        e.add_field(name="Country", value=verification.country_code)
         e.add_field(name="MKC ID", value=f"[{verification.mkc_id}]({ctx.bot.config.mkc_credentials.url}/registry/players/profile?id={verification.mkc_id})")
         e.add_field(name="Mention", value=f"<@{verification.discord_id}>")
         e.add_field(name="Status", value=verification.approval_status, inline=False)
