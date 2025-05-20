@@ -109,6 +109,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         e.add_field(name="ID", value=verification_id)
         e.add_field(name="Leaderboard", value=self.lb.name)
         e.add_field(name="Requested Name", value=request_data.requested_name, inline=False)
+        e.add_field(name="Country", value=mkc_player.country_code)
         e.add_field(name="MKC ID", value=f"[{request_data.mkc_id}]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={request_data.mkc_id})")
         e.add_field(name="Mention", value=interaction.user.mention)
         await verification_log.send(embed=e)
