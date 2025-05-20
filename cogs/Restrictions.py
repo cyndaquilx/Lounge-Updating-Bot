@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 import json
 from datetime import datetime, timedelta, timezone
@@ -102,12 +103,8 @@ class Restrictions(commands.Cog):
                 await self.add_violation(after)
                 await after.delete()
 
-    @commands.command(aliases=['rw'])
-    @commands.cooldown(1, 300, commands.BucketType.member)
-    @commands.guild_only()
-    async def restrictedwords(self, ctx: commands.Context):
-        if not ctx.guild:
-            return
+    async def send_restricted_words(self, ctx: commands.Context[UpdatingBot]):
+        assert ctx.guild is not None
         server_allowed_phrases: list[str] | None = self.phrases.get(str(ctx.guild.id), None)
         if server_allowed_phrases is None:
             await ctx.send("There are no restricted words in this server.")
@@ -118,6 +115,19 @@ class Restrictions(commands.Cog):
         file_data = file.getvalue().encode('utf-8')
         f = discord.File(fp=BytesIO(file_data), filename="phrases.json")
         await ctx.send(file=f)
+
+    @commands.command(name="restrictedwords", aliases=['rw'])
+    @commands.cooldown(1, 300, commands.BucketType.member)
+    @commands.guild_only()
+    async def restricted_words_text(self, ctx: commands.Context):
+        assert ctx.guild is not None
+        await self.send_restricted_words(ctx)
+
+    @app_commands.command(name="restricted_words")
+    @app_commands.guild_only()
+    async def restricted_words_slash(self, interaction: discord.Interaction):
+        ctx = await commands.Context.from_interaction(interaction)
+        await self.send_restricted_words(ctx)
 
     @commands.check(command_check_staff_roles)
     @commands.command(aliases=['addrw'])

@@ -1,0 +1,11 @@
+services:
+  updating-bot:
+    build:
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - updating-db:/data
+      - ./allowed_phrases.json:/app/allowed_phrases.json:rw
+
+volumes:
+  updating-db:

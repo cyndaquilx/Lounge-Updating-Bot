@@ -4,7 +4,7 @@ from discord.ext import commands
 import API.get, API.post
 from models import LeaderboardConfig, Player
 from util import update_roles, get_leaderboard, get_leaderboard_slash
-from custom_checks import app_command_check_staff_roles, command_check_staff_roles
+from custom_checks import app_command_check_updater_roles, command_check_updater_roles
 import custom_checks
 from typing import Optional, Union
 from datetime import timedelta
@@ -158,7 +158,7 @@ class Penalties(commands.Cog):
         await self.add_penalty(ctx, lb, amount, tier, names, reason, None, is_anonymous, is_strike)
 
     @penalty_group.command(name="new")
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def penalty_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 1, 200], tier:str, names: str, 
                                 reason:str | None, leaderboard: Optional[str], strike: bool = False, anonymous: bool = False):
@@ -168,7 +168,7 @@ class Penalties(commands.Cog):
         await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, strike)
 
     @penalty_group.command(name="strike")
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def strike_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 1, 200], tier:str, names: str, 
                                 reason:str | None, leaderboard: Optional[str], anonymous: bool = False):
@@ -177,25 +177,25 @@ class Penalties(commands.Cog):
         parsed_names = [n.strip() for n in names.split(",")]
         await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, True)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="penalty", aliases=['pen'])
     async def penalty_text(self, ctx, amount:int, tier, *, args):
         lb = get_leaderboard(ctx)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="anonymousPenalty", aliases=['apen', 'apenalty'])
     async def penalty_anonymous_text(self, ctx, amount:int, tier, *, args):
         lb = get_leaderboard(ctx)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_anonymous=True)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="strike", aliases=['str'])
     async def strike_text(self, ctx, amount:int, tier, *, args):
         lb = get_leaderboard(ctx)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="anonymousStrike", aliases=['astr', 'astrike'])
     async def strike_anonymous_text(self, ctx, amount:int, tier, *, args):
         lb = get_leaderboard(ctx)
@@ -221,21 +221,21 @@ class Penalties(commands.Cog):
             assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="deletePenalty")
     async def delete_penalty_text(self, ctx, pen_id:int, *, reason=None):
         lb = get_leaderboard(ctx)
         await self.delete_penalty(ctx, lb, pen_id, reason)
 
     @penalty_group.command(name="delete")
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def delete_penalty_slash(self, interaction: discord.Interaction, pen_id: int, reason: Optional[str], leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.delete_penalty(ctx, lb, pen_id, reason)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="strikelist")
     async def get_strikes_text(self, ctx: commands.Context, *, name: str):
         lb = get_leaderboard(ctx)

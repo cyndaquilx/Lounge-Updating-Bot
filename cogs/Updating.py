@@ -5,7 +5,7 @@ from discord.ext import commands
 import mmrTables
 import API.post, API.get
 
-from custom_checks import check_staff_roles, command_check_reporter_roles, command_check_staff_roles, app_command_check_staff_roles, command_check_admin_roles
+from custom_checks import check_updater_roles, command_check_reporter_roles, command_check_updater_roles, app_command_check_updater_roles, command_check_admin_roles
 import custom_checks
 
 from typing import Optional
@@ -49,14 +49,14 @@ class Updating(commands.Cog):
         if len(msg) > 0:
             await ctx.send(msg) 
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="pending")
     @commands.guild_only()
     async def pending_text(self, ctx):
         lb = get_leaderboard(ctx)
         await self.get_pending(ctx, lb)
         
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name="pending")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.guild_only()
@@ -65,7 +65,7 @@ class Updating(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.get_pending(ctx, lb)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="table")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def update_table_slash(self, interaction: discord.Interaction, tableid: int, multipliers: Optional[str], leaderboard: Optional[str]):
@@ -73,7 +73,7 @@ class Updating(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_table(ctx, lb, tableid, extraArgs=multipliers)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="update", aliases=["u"])
     @commands.guild_only()
     async def update_table_text(self, ctx, tableid: int, *, extraArgs=""):
@@ -100,7 +100,7 @@ class Updating(commands.Cog):
         in_tier = f"in Tier {tier.upper()}" if tier else ""
         await ctx.send(f"Updated all tables {up_to} {in_tier}")
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="all")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def update_all_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
@@ -108,14 +108,14 @@ class Updating(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_all_tables(ctx, lb)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(aliases=['ua'])
     @commands.guild_only()
     async def updateAll(self, ctx):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="tier")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def update_tier_slash(self, interaction: discord.Interaction, tier: str, leaderboard: Optional[str]):
@@ -123,14 +123,14 @@ class Updating(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_all_tables(ctx, lb, tier=tier)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(aliases=['ut'])
     @commands.guild_only()
     async def updateTier(self, ctx, tier):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, tier=tier)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="until")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def update_until_slash(self, interaction: discord.Interaction, table_id: int, leaderboard: Optional[str]):
@@ -138,14 +138,14 @@ class Updating(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_all_tables(ctx, lb, until_id=table_id)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(aliases=['uu'])
     @commands.guild_only()
     async def updateUntil(self, ctx, tableid:int):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, until_id=tableid)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="tier_until")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def update_tier_until_slash(self, interaction: discord.Interaction, tier: str, table_id: int, leaderboard: Optional[str]):
@@ -153,14 +153,14 @@ class Updating(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_all_tables(ctx, lb, tier=tier, until_id=table_id)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(aliases=['utu'])
     @commands.guild_only()
     async def updateTierUntil(self, ctx, tier: str, table_id:int):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, tier=tier, until_id=table_id)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(aliases=['setml'])
     @commands.guild_only()
     async def setMultipliers(self, ctx, table_id:int, *, extraArgs=""):
@@ -174,7 +174,7 @@ class Updating(commands.Cog):
             return
         await workmsg.edit(content=f"Successfully set multipliers for table")
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(aliases=['mlraces'])
     @commands.guild_only()
     async def multiplierRaces(self, ctx: commands.Context, table_id: int, *, extraArgs=""):
@@ -324,7 +324,7 @@ class Updating(commands.Cog):
         if table is None:
             await ctx.send("Table couldn't be found")
             return
-        if not check_staff_roles(ctx):
+        if not check_updater_roles(ctx):
             if table.verified_on:
                 await ctx.send("This table has been updated already, so you cannot edit the scores as a Reporter.")
                 return
@@ -406,7 +406,7 @@ class Updating(commands.Cog):
             assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="fixNames")
     @commands.guild_only()
     async def fix_names_text(self, ctx: commands.Context, table_id:int, *, args):
@@ -444,7 +444,7 @@ class Updating(commands.Cog):
             assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="fixScores")
     @commands.guild_only()
     async def fix_scores_text(self, ctx: commands.Context, table_id:int, *, args):
