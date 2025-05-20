@@ -92,6 +92,7 @@ class Verification(commands.Cog):
             if add_success:
                 successes.append(verification.id)
         await update_verification_approvals(ctx.bot.db_wrapper, verification.guild_id, lb, "approved", successes)
+        return successes
 
     @verify_group.command(name="approve")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
@@ -99,6 +100,7 @@ class Verification(commands.Cog):
     async def approve_pending_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
+        await ctx.defer()
         lb = get_leaderboard_slash(ctx, leaderboard)
         verification = await get_verification_by_id(interaction.client.db_wrapper, interaction.guild.id, lb, id)
         if not verification:
@@ -110,8 +112,11 @@ class Verification(commands.Cog):
         if verification.approval_status == "approved":
             await ctx.send("Verification is already approved")
             return
-        await self.approve_verifications(ctx, lb, [verification])
-        await ctx.send("Successfully approved the verification")
+        success = await self.approve_verifications(ctx, lb, [verification])
+        if len(success):
+            await ctx.send("Successfully approved the verification")
+        else:
+            await ctx.send("Failed to approve the verification")
 
     @verify_group.command(name="approve_all")
     @app_commands.choices(
@@ -126,6 +131,7 @@ class Verification(commands.Cog):
     async def approve_all_pending_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
+        await ctx.defer()
         lb = get_leaderboard_slash(ctx, leaderboard)
         verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending", countries.value)
         if not len(verifications):
@@ -139,6 +145,7 @@ class Verification(commands.Cog):
     async def deny_pending_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, reason: Optional[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
+        await ctx.defer()
         lb = get_leaderboard_slash(ctx, leaderboard)
         verification = await get_verification_by_id(interaction.client.db_wrapper, interaction.guild.id, lb, id)
         if not verification:
@@ -185,6 +192,7 @@ class Verification(commands.Cog):
     async def request_ticket_for_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, reason: Optional[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
+        await ctx.defer()
         lb = get_leaderboard_slash(ctx, leaderboard)
         verification = await get_verification_by_id(interaction.client.db_wrapper, interaction.guild.id, lb, id)
         if not verification:
