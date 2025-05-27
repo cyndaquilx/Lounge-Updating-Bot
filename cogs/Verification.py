@@ -117,7 +117,32 @@ class Verification(commands.Cog):
             return
         await self.approve_verifications(ctx, lb, [verification])
 
-    @verify_group.command(name="approve_all")
+    @verify_group.command(name="approve_many")
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    async def approve_many_pending_verifications(self, interaction: discord.Interaction[UpdatingBot], request_ids: str, leaderboard: Optional[str]):
+        assert interaction.guild is not None
+        ctx = await commands.Context.from_interaction(interaction)
+        await ctx.defer()
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        ids: list[int] = []
+        for id in request_ids.split():
+            if not id.isdigit():
+                await ctx.send(f"{id} is not a valid integer. Be sure to type the request IDs as a space-separated list (ex. 1 2 3)")
+                return
+            ids.append(int(id))
+        verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending")
+        verification_dict = {v.id: v for v in verifications}
+        approve_list: list[VerificationRequest] = []
+        for id in ids:
+            v = verification_dict.get(id, None)
+            if v is None:
+                await ctx.send(f"Verification with ID {id} not found")
+                return
+            approve_list.append(v)
+        await self.approve_verifications(ctx, lb, approve_list)
+
+    #@verify_group.command(name="approve_all")
     @app_commands.choices(
         countries=[
             app_commands.Choice(name="Non-Japanese", value="West"),
@@ -141,7 +166,7 @@ class Verification(commands.Cog):
     @verify_group.command(name="deny")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
-    async def deny_pending_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, reason: Optional[str], leaderboard: Optional[str]):
+    async def deny_pending_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, reason: Optional[str], send_dm: Optional[bool], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
         await ctx.defer()
@@ -157,17 +182,18 @@ class Verification(commands.Cog):
             await ctx.send(f"Verification ID {id} is already approved")
             return
         await update_verification_approvals(interaction.client.db_wrapper, interaction.guild.id, lb, "denied", [verification.id], reason)
-        found_member = interaction.guild.get_member(verification.discord_id)
-        if not found_member:
-            await ctx.send("Could not find member in this server, so denial DM was not sent")
-            return
-        denial_msg = (f"Your request to be verified in {interaction.guild.name} was denied. Reason: {reason}" +
-            f"\n{interaction.guild.name} へのあなたの認証リクエストは拒否されました。理由： {reason}")
-        try:
-            await found_member.send(denial_msg)
-            await ctx.send("Successfully sent DM to member")
-        except:
-            await ctx.send("Member does not accept DMs from the bot, so denial DM was not sent")
+        if send_dm:
+            found_member = interaction.guild.get_member(verification.discord_id)
+            if not found_member:
+                await ctx.send("Could not find member in this server, so denial DM was not sent")
+                return
+            denial_msg = (f"Your request to be verified in {interaction.guild.name} was denied. Reason: {reason}" +
+                f"\n{interaction.guild.name} へのあなたの認証リクエストは拒否されました。理由： {reason}")
+            try:
+                await found_member.send(denial_msg)
+                await ctx.send("Successfully sent DM to member")
+            except:
+                await ctx.send("Member does not accept DMs from the bot, so denial DM was not sent")
         await ctx.send(f"Successfully denied verification ID {verification.id}")
 
         # send denied verification to updating log
@@ -180,7 +206,7 @@ class Verification(commands.Cog):
         e.add_field(name="Leaderboard", value=lb.name)
         e.add_field(name="Requested Name", value=verification.requested_name, inline=False)
         e.add_field(name="MKC ID", value=f"[{verification.mkc_id}]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={verification.mkc_id})")
-        e.add_field(name="Mention", value=interaction.user.mention)
+        e.add_field(name="Mention", value=f"<@{verification.discord_id}>")
         e.add_field(name="Denied by", value=ctx.author.mention, inline=False)
         e.add_field(name="Reason", value=reason, inline=False)
         await verification_log.send(embed=e)
