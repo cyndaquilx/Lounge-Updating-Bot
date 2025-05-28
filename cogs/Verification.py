@@ -132,6 +132,7 @@ class Verification(commands.Cog):
                 return
             ids.append(int(id))
         verifications = await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "pending")
+        verifications.extend(await get_verifications(interaction.client.db_wrapper, interaction.guild.id, lb, "ticket"))
         verification_dict = {v.id: v for v in verifications}
         approve_list: list[VerificationRequest] = []
         for id in ids:
