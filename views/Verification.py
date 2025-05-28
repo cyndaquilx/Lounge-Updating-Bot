@@ -112,6 +112,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         e.add_field(name="Country", value=mkc_player.country_code)
         e.add_field(name="MKC ID", value=f"[{request_data.mkc_id}]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={request_data.mkc_id})")
         e.add_field(name="Mention", value=interaction.user.mention)
+        e.add_field(name="Friend Codes", value="\n".join([f.fc for f in valid_fcs]), inline=False)
         await verification_log.send(embed=e)
 
 class VerifyView(discord.ui.View):
