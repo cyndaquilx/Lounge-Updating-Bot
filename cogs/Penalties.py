@@ -65,7 +65,7 @@ class Penalties(commands.Cog):
             embed_title = "Penalty + strike added"
         tier = tier.upper()
         e = discord.Embed(title=embed_title)
-        e.add_field(name="Player", value=pen.player_name, inline=False)
+        e.add_field(name="Player", value=f"<@{player.discord_id}>", inline=False)
         e.add_field(name="Amount", value="-%d" % abs(amount))
         e.add_field(name="ID", value=pen.id)
         if tier != "":
@@ -128,7 +128,7 @@ class Penalties(commands.Cog):
         players: list[Player] = []
         for name in names:
             if name.isdigit():
-                player = await API.get.getPlayerFromDiscord(lb.website_credentials, name)
+                player = await API.get.getPlayerFromDiscord(lb.website_credentials, int(name))
                 if player is None:
                     await ctx.send(f"The following player could not be found: {name}")
                     return [None]
