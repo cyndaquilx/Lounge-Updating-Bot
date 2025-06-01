@@ -123,7 +123,7 @@ async def placePlayer(credentials: WebsiteCredentials, mmr:int, name:str, force=
 async def placeManyPlayers(credentials: WebsiteCredentials, placements: list[PlayerPlacement]):
     request_url = f"{credentials.url}/api/player/bulkPlacement"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"?game=${credentials.game}"
     body = {"playerPlacements": [{"name": p.name, "mmr": p.mmr} for p in placements]}
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers,json=body) as resp:
@@ -170,7 +170,7 @@ async def deleteTable(credentials: WebsiteCredentials, table_id: int):
 async def createTable(credentials: WebsiteCredentials, table: TableBasic):
     request_url = f"{credentials.url}/api/table/create?"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"game=${credentials.game}"
     body = table.to_submission_format()
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers,json=body) as resp:

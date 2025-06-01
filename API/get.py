@@ -158,7 +158,7 @@ async def getTable(credentials: WebsiteCredentials, table_id: int):
 async def getPending(credentials: WebsiteCredentials):
     request_url = f"{credentials.url}/api/table/unverified"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"?game=${credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -170,7 +170,7 @@ async def getPending(credentials: WebsiteCredentials):
 async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | None:
     request_url = f"{credentials.url}/api/player/list"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"?game=${credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -182,7 +182,7 @@ async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | N
 async def getPendingNameChanges(credentials: WebsiteCredentials):
     request_url = f"{credentials.url}/api/player/listPendingNameChanges"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"?game=${credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
