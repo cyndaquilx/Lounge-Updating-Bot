@@ -171,11 +171,9 @@ async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | N
     request_url = f"{credentials.url}/api/player/list"
     if credentials.game:
         request_url += f"?game={credentials.game}"
-    print(request_url)
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
-                print(resp.status)
                 return None
             body = await resp.json()
             players = ListPlayer.from_list_api_response(body)

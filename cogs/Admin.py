@@ -88,15 +88,9 @@ class Admin(commands.Cog):
         if not ctx.guild: 
             return
         member_count = len(ctx.guild.members)
-        player_list = await API.get.getPlayerList(lb.website_credentials)
-        if not player_list:
-            await ctx.send("An error occurred while getting the player list")
-            return
-        player_dict: dict[int, ListPlayer] = {p.discord_id: p for p in player_list if p.discord_id}
         await ctx.send("Working...")
         for i, member in enumerate(ctx.guild.members):
-            # player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
-            player = player_dict.get(member.id, None)
+            player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
             await fix_player_role(ctx.guild, lb, player, member)
             if (i+1) % 100 == 0:
                 await ctx.send(f"{i+1}/{member_count}")
