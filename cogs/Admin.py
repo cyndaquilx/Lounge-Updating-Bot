@@ -7,7 +7,7 @@ import API.post, API.get
 import asyncio
 
 from util import get_leaderboard, get_leaderboard_slash, fix_player_role
-from models import ServerConfig, LeaderboardConfig, PlayerPlacement, UpdatingBot
+from models import ServerConfig, LeaderboardConfig, PlayerPlacement, UpdatingBot, ListPlayer
 from custom_checks import leaderboard_autocomplete, app_command_check_admin_roles, command_check_admin_roles
 from io import StringIO, BytesIO
 import csv
@@ -88,9 +88,15 @@ class Admin(commands.Cog):
         if not ctx.guild: 
             return
         member_count = len(ctx.guild.members)
+        player_list = await API.get.getPlayerList(lb.website_credentials)
+        if not player_list:
+            await ctx.send("An error occurred while getting the player list")
+            return
+        player_dict: dict[int, ListPlayer] = {p.discord_id: p for p in player_list if p.discord_id}
         await ctx.send("Working...")
         for i, member in enumerate(ctx.guild.members):
-            player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
+            # player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
+            player = player_dict.get(member.id, None)
             await fix_player_role(ctx.guild, lb, player, member)
             if (i+1) % 100 == 0:
                 await ctx.send(f"{i+1}/{member_count}")
@@ -154,8 +160,8 @@ class Admin(commands.Cog):
         await ctx.bot.tree.sync()
         await ctx.send("synced")
 
-    @commands.command()
-    @commands.is_owner()
+    # @commands.command()
+    # @commands.is_owner()
     async def table_fix(self, ctx: commands.Context[UpdatingBot]):
         async with ctx.bot.db_wrapper.connect() as db:
             await db.executescript("""CREATE TABLE IF NOT EXISTS verification_requests_new(

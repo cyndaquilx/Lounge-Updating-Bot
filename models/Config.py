@@ -5,6 +5,7 @@ class WebsiteCredentials:
     url: str
     username: str
     password: str
+    game: str | None
 
 @dataclass
 class MKCentralCredentials:

@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot
+from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot, ListPlayer
 from custom_checks import check_valid_name, yes_no_check
 import API.get, API.post
 
@@ -177,7 +177,7 @@ async def update_roles(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig
                 await member.add_roles(new_role)
     return rank_changes
 
-async def fix_player_role(guild: discord.Guild, lb: LeaderboardConfig, player: Player | None, member: discord.Member):
+async def fix_player_role(guild: discord.Guild, lb: LeaderboardConfig, player: Player | ListPlayer | None, member: discord.Member):
     player_roles: list[discord.Role] = []
     placement_role = guild.get_role(lb.placement_role_id)
     player_role = guild.get_role(lb.player_role_id)

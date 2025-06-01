@@ -11,6 +11,33 @@ class PlayerBasic:
     country_code: str | None
 
 @dataclass
+class PlayerAllGames(PlayerBasic):
+    mkc_id: int | None
+    registry_id: int | None
+    fc: str | None
+    is_hidden: bool
+    registrations: list[str]
+
+    @classmethod
+    def from_api_response(cls, body: dict, detailed=False):
+        if detailed:
+            id = body['playerId']
+        else:
+            id = body['id']
+        name = body['name']
+        discord_id = body.get('discordId', None)
+        if discord_id is not None:
+            discord_id = str(discord_id)
+        country_code = body.get('countryCode', None)
+        mkc_id = body.get('mkcId', None)
+        registry_id = body.get('registryId', None)
+        fc = body.get('switchFc', None)
+        is_hidden = body['isHidden']
+        registrations = body['registrations']
+        player = cls(id, name, discord_id, country_code, mkc_id, registry_id, fc, is_hidden, registrations)
+        return player
+
+@dataclass
 class Player(PlayerBasic):
     mkc_id: int | None
     registry_id: int | None
