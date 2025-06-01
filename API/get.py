@@ -6,7 +6,7 @@ headers = {'Content-type': 'application/json'}
 async def getStrikes(credentials: WebsiteCredentials, name: str):
     request_url = f"{credentials.url}/api/penalty/list?name={name}&isStrike=true"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -22,7 +22,7 @@ async def getPlayers(credentials: WebsiteCredentials, names: list[str]):
         for name in names:
             request_url = f"{base_url}?name={name}"
             if credentials.game:
-                request_url += f"&game=${credentials.game}"
+                request_url += f"&game={credentials.game}"
             async with session.get(request_url, headers=headers) as resp:
                 if resp.status != 200:
                     players.append(None)
@@ -35,7 +35,7 @@ async def getPlayers(credentials: WebsiteCredentials, names: list[str]):
 async def getPlayer(credentials: WebsiteCredentials, name: str):
     request_url = f"{credentials.url}/api/player?name={name}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -47,7 +47,7 @@ async def getPlayer(credentials: WebsiteCredentials, name: str):
 async def getPlayerFromMKC(credentials: WebsiteCredentials, mkc_id: int):
     request_url = f"{credentials.url}/api/player?mkcId={mkc_id}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -59,7 +59,7 @@ async def getPlayerFromMKC(credentials: WebsiteCredentials, mkc_id: int):
 async def getPlayerFromLounge(credentials: WebsiteCredentials, lounge_id: int):
     request_url = f"{credentials.url}/api/player?id={lounge_id}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -71,7 +71,7 @@ async def getPlayerFromLounge(credentials: WebsiteCredentials, lounge_id: int):
 async def getPlayerFromDiscord(credentials: WebsiteCredentials, discord_id: int):
     request_url = f"{credentials.url}/api/player?discordId={discord_id}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -123,7 +123,7 @@ async def getPlayerAllGamesFromDiscord(credentials: WebsiteCredentials, discord_
 async def getPlayerDetails(credentials: WebsiteCredentials, name: str):
     request_url = f"{credentials.url}/api/player/details?name={name}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -135,7 +135,7 @@ async def getPlayerDetails(credentials: WebsiteCredentials, name: str):
 async def getPlayerDetailsFromDiscord(credentials: WebsiteCredentials, discord_id: int):
     request_url = f"{credentials.url}/api/player/details?discordId={discord_id}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -147,7 +147,7 @@ async def getPlayerDetailsFromDiscord(credentials: WebsiteCredentials, discord_i
 async def getTable(credentials: WebsiteCredentials, table_id: int):
     request_url = f"{credentials.url}/api/table?tableId={table_id}"
     if credentials.game:
-        request_url += f"&game=${credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -158,7 +158,7 @@ async def getTable(credentials: WebsiteCredentials, table_id: int):
 async def getPending(credentials: WebsiteCredentials):
     request_url = f"{credentials.url}/api/table/unverified"
     if credentials.game:
-        request_url += f"?game=${credentials.game}"
+        request_url += f"?game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -170,10 +170,12 @@ async def getPending(credentials: WebsiteCredentials):
 async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | None:
     request_url = f"{credentials.url}/api/player/list"
     if credentials.game:
-        request_url += f"?game=${credentials.game}"
+        request_url += f"?game={credentials.game}"
+    print(request_url)
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
+                print(resp.status)
                 return None
             body = await resp.json()
             players = ListPlayer.from_list_api_response(body)
@@ -182,7 +184,7 @@ async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | N
 async def getPendingNameChanges(credentials: WebsiteCredentials):
     request_url = f"{credentials.url}/api/player/listPendingNameChanges"
     if credentials.game:
-        request_url += f"?game=${credentials.game}"
+        request_url += f"?game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
