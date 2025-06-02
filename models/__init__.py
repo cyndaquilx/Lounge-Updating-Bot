@@ -6,4 +6,5 @@ from .Names import *
 from .Penalties import *
 from .Bonuses import *
 from .UpdatingBot import *
+from .Request import *
 from .Verification import *

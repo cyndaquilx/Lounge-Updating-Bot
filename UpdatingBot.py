@@ -24,7 +24,7 @@ bot = UpdatingBot(config, db_wrapper, command_prefix=config.get_prefixes(), case
 print(bot.command_prefix)
 
 initial_extensions = ['cogs.Updating', 'cogs.Tables', 'cogs.Admin', 'cogs.Restrictions', 'cogs.Make_table', 'cogs.Players', 
-                      'cogs.Names', 'cogs.Penalties', 'cogs.Bonuses', 'cogs.Reactions', 'cogs.Request', 'cogs.Verification']
+                      'cogs.Names', 'cogs.Penalties', 'cogs.Bonuses', 'cogs.Reactions', 'cogs.Requests', 'cogs.Verification']
 #initial_extensions = ['cogs.Admin',]
 
 @bot.event

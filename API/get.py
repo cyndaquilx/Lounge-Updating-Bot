@@ -1,5 +1,5 @@
 import aiohttp
-from models import Table, WebsiteCredentials, Player, PlayerDetailed, NameChangeRequest, ListPlayer, Penalty, PlayerAllGames
+from models import Table, WebsiteCredentials, Player, PlayerDetailed, NameChangeRequest, ListPlayer, Penalty, PlayerAllGames, PenaltyRequest
 from io import BytesIO
 
 headers = {'Content-type': 'application/json'}
@@ -200,3 +200,27 @@ async def downloadTableImage(credentials: WebsiteCredentials, table_id: int):
                 return None
             else:
                 return BytesIO(await resp.read())
+                
+async def getPenaltyRequest(credentials: WebsiteCredentials, request_id: int):
+    request_url = f"{credentials.url}/api/request?id={request_id}"
+    if credentials.game:
+        request_url += f"?game={credentials.game}"
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.get(request_url, headers=headers) as resp:
+            if resp.status != 200:
+                return None
+            body = await resp.json()
+            request = PenaltyRequest.from_api_response(body)
+            return request
+
+async def getPendingPenaltyRequests(credentials: WebsiteCredentials):
+    request_url = f"{credentials.url}/api/request/list"
+    if credentials.game:
+        request_url += f"?game={credentials.game}"
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.get(request_url, headers=headers) as resp:
+            if resp.status != 200:
+                return None
+            body = await resp.json()
+            requests = PenaltyRequest.from_list_api_response(body)
+            return requests
