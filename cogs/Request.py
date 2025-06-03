@@ -5,7 +5,7 @@ from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
 from util import get_leaderboard_slash, get_leaderboard, set_multipliers, check_against_automod_lists
-from models import LeaderboardConfig, ServerConfig
+from models import LeaderboardConfig, ServerConfig, UpdatingBot
 from custom_checks import app_command_check_reporter_roles, app_command_check_updater_roles, check_role_list, command_check_updater_roles, check_updater_roles
 import API.get
 import custom_checks
@@ -156,7 +156,7 @@ CHECK_BOX = "\U00002611"
 X_MARK = "\U0000274C"
 
 class Request(commands.Cog):
-    def __init__ (self, bot):
+    def __init__ (self, bot: UpdatingBot):
         self.bot = bot
 
     #Dictionary containing: Message ID -> RequestInstance
@@ -284,7 +284,7 @@ class Request(commands.Cog):
             #Repick automation
             for i in range(request_data.penalty_instance.total_repick):
                 if i == 0:
-                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=False, is_request=True)
+                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=True, is_request=True)
                 else:
                     id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=True, is_request=True)
         else:
