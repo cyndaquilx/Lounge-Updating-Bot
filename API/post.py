@@ -348,7 +348,7 @@ async def rejectNameChange(credentials: WebsiteCredentials, current_name: str):
             return name_change, None
 
 async def createPenaltyRequest(credentials: WebsiteCredentials, penalty_name: str, player_name: str, reporter_name: str, tab_id: int, number_of_races=0):
-    request_url = f"{credentials.url}/api/request/create?penaltyType={urllib.parse.quote(penalty_name)}&playerName={player_name}&reporterName={reporter_name}&tableID={tab_id}&numberOfRaces={number_of_races}"
+    request_url = f"{credentials.url}/api/penaltyrequest/create?penaltyType={urllib.parse.quote(penalty_name)}&playerName={player_name}&reporterName={reporter_name}&tableID={tab_id}&numberOfRaces={number_of_races}"
     if credentials.game:
         request_url += f"&game={credentials.game}"    
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
@@ -361,7 +361,7 @@ async def createPenaltyRequest(credentials: WebsiteCredentials, penalty_name: st
             return request, None
 
 async def deletePenaltyRequest(credentials: WebsiteCredentials, request_id: int):
-    request_url = f"{credentials.url}/api/request?id={request_id}"
+    request_url = f"{credentials.url}/api/penaltyrequest?id={request_id}"
     if credentials.game:
         request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:

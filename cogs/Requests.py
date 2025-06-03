@@ -43,6 +43,11 @@ class PenaltyInstance:
     async def apply_multiplier(self, lb, ctx, bot, table, player_name, requests_list: list[PenaltyRequest]):
         pass
 
+    async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, is_strike):
+        id_result = []
+        id_result += await penalties_cog.add_penalty(ctx, lb, amount, tier, [player_name], reason=self.penalty_name, table_id=self.table_id, is_anonymous=True, is_strike=is_strike)
+        return id_result
+
 class RepickInstance(PenaltyInstance):
     def __init__(self, penalty_name, lounge_id, table_id, total_repick):
         super().__init__(penalty_name, lounge_id, table_id)
@@ -52,6 +57,12 @@ class RepickInstance(PenaltyInstance):
         partial_embed = PenaltyInstance.create_embed(self, ctx, request_id, player_name, reason)
         partial_embed.add_field(name="Number of repick", value=self.total_repick)
         return partial_embed
+
+    async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, is_strike):
+        id_result = []
+        for _ in range(self.total_repick):    
+            id_result += await penalties_cog.add_penalty(ctx, lb, amount, tier, [player_name], reason=self.penalty_name, table_id=self.table_id, is_anonymous=True, is_strike=is_strike)
+        return id_result
 
 class DropInstance(PenaltyInstance):
     def __init__(self, penalty_name, lounge_id, table_id, races_played_alone):
@@ -78,7 +89,7 @@ class DropInstance(PenaltyInstance):
 
     async def apply_multiplier(self, lb, ctx, bot, table, player_name, requests_list):
         no_ml_players = []
-        max_number_of_races = self.races_played_alone
+        max_number_of_races = 0
         for request in requests_list:
             if request.table_id == self.table_id and isinstance(penalty_instance_builder(request.penalty_name, request.player_id, request.table_id, request.number_of_races), DropInstance):
                 result = await self.same_team_players(lb, table, player_name, request.player_name)
@@ -100,15 +111,23 @@ class DropInstance(PenaltyInstance):
 
         #Handle setml here
         updating_cog = bot.get_cog('Updating')
-        mlraces_args = player_name + " " + str(self.races_played_alone)
-        await updating_cog.multiplierRaces(ctx, self.table_id, extraArgs=mlraces_args)
-        setml_args = ""
-        for player in no_ml_players:
-            setml_args += player + " 1, "
-        if setml_args != "":
-            setml_args = setml_args[:-2]
-        await set_multipliers(ctx, lb, self.table_id, setml_args)
-
+        if len(no_ml_players) > 0:
+            mlraces_args = no_ml_players[0] + " " + str(max_number_of_races)
+            await updating_cog.multiplierRaces(ctx, self.table_id, extraArgs=mlraces_args)
+            setml_args = ""
+            for player in no_ml_players:
+                setml_args += player + " 1, "
+            if setml_args != "":
+                setml_args = setml_args[:-2]
+            await set_multipliers(ctx, lb, self.table_id, setml_args)
+        else:
+            team = table.get_team(player_name)
+            setml_args = ""
+            for tablescore in team.scores:
+                setml_args += tablescore.player.name + " 1, "
+            if setml_args != "":
+                setml_args = setml_args[:-2]
+            await set_multipliers(ctx, lb, self.table_id, setml_args)
         ctx.channel = channel_copy
         ctx.interaction = interaction_copy
         ctx.prefix = prefix_copy
@@ -201,16 +220,8 @@ class Requests(commands.Cog):
         penalties_cog = self.bot.get_cog('Penalties')
         amount = penalty_static_info[request_data.penalty_name][0]
         is_strike = penalty_static_info[request_data.penalty_name][1]
-        id_result = []
-        if isinstance(penalty_instance, RepickInstance):
-            #Repick automation
-            for i in range(penalty_instance.total_repick):
-                if i == 0:
-                    id_result += await penalties_cog.add_penalty(ctx, lb, amount, table.tier, [request_data.player_name], reason=penalty_instance.penalty_name, table_id=penalty_instance.table_id, is_anonymous=True, is_strike=False)
-                else:
-                    id_result += await penalties_cog.add_penalty(ctx, lb, amount, table.tier, [request_data.player_name], reason=penalty_instance.penalty_name, table_id=penalty_instance.table_id, is_anonymous=True, is_strike=True)
-        else:
-            id_result += await penalties_cog.add_penalty(ctx, lb, amount, table.tier, [request_data.player_name], reason=penalty_instance.penalty_name, table_id=penalty_instance.table_id, is_anonymous=True, is_strike=is_strike)
+        
+        id_result = await penalty_instance.apply_penalty(lb, ctx, penalties_cog, table.tier, request_data.player_name, amount, is_strike)
 
         embed = discord.Embed()
         embed.title = "Penalty request accepted" if None not in id_result else "Penalty request error"
@@ -319,14 +330,14 @@ class Requests(commands.Cog):
             await ctx.send("Your discord ID doesn't match any player in our database", ephemeral=True)
             return
 
-        requests_list = await API.get.getPendingPenaltyRequests(lb.website_credentials)
-        if requests_list is None:
-            await ctx.send(f"An error occurred while accessing the database", ephemeral=True)
-            return
-
         request, error = await API.post.createPenaltyRequest(lb.website_credentials, penalty_type, player_name, reporter.name, table_id, number_of_races)
         if request is None:
             await ctx.send(f"An error occurred while creating the request: {error}", ephemeral=True)
+            return
+
+        requests_list = await API.get.getPendingPenaltyRequests(lb.website_credentials)
+        if requests_list is None:
+            await ctx.send(f"An error occurred while accessing the database", ephemeral=True)
             return
 
         penalty_instance = penalty_instance_builder(penalty_type, player.id, table_id, number_of_races)

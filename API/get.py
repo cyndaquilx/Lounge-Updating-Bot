@@ -202,9 +202,9 @@ async def downloadTableImage(credentials: WebsiteCredentials, table_id: int):
                 return BytesIO(await resp.read())
                 
 async def getPenaltyRequest(credentials: WebsiteCredentials, request_id: int):
-    request_url = f"{credentials.url}/api/request?id={request_id}"
+    request_url = f"{credentials.url}/api/penaltyrequest?id={request_id}"
     if credentials.game:
-        request_url += f"?game={credentials.game}"
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url, headers=headers) as resp:
             if resp.status != 200:
@@ -214,7 +214,7 @@ async def getPenaltyRequest(credentials: WebsiteCredentials, request_id: int):
             return request
 
 async def getPendingPenaltyRequests(credentials: WebsiteCredentials):
-    request_url = f"{credentials.url}/api/request/list"
+    request_url = f"{credentials.url}/api/penaltyrequest/list"
     if credentials.game:
         request_url += f"?game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
