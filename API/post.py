@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus, PlayerPlacement
 from typing import Tuple
 
@@ -228,14 +229,18 @@ async def verifyTable(credentials: WebsiteCredentials, table_id:int):
     if credentials.game:
         request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
-        async with session.post(request_url,headers=headers) as resp:
-            if resp.status != 200:
-                resp_text = await resp.text()
-                error_msg = f"{resp.status} - {resp_text}"
-                return None, error_msg
-            body = await resp.json()
-            table = Table.from_api_response(body)
-            return table, None
+        error_msg = None
+        for _ in range(5):
+            async with session.post(request_url,headers=headers) as resp:
+                if resp.status != 200:
+                    resp_text = await resp.text()
+                    error_msg = f"{resp.status} - {resp_text}"
+                    await asyncio.sleep(10)
+                    continue
+                body = await resp.json()
+                table = Table.from_api_response(body)
+                return table, None
+        return None, error_msg
 
 async def updateDiscord(credentials: WebsiteCredentials, name, discord_id:int):
     request_url = f"{credentials.url}/api/player/update/discordId?name={name}&newDiscordId={discord_id}"
@@ -314,14 +319,18 @@ async def acceptNameChange(credentials: WebsiteCredentials, current_name: str):
     if credentials.game:
         request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
-        async with session.post(request_url, headers=headers) as resp:
-            if int(resp.status/100) != 2:
-                resp_text = await resp.text()
-                error_msg = f"{resp.status} - {resp_text}"
-                return None, error_msg
-            body = await resp.json()
-            name_change = NameChangeRequest.from_api_response(body)
-            return name_change, None
+        error_msg = None
+        for _ in range(5):
+            async with session.post(request_url, headers=headers) as resp:
+                if int(resp.status/100) != 2:
+                    resp_text = await resp.text()
+                    error_msg = f"{resp.status} - {resp_text}"
+                    await asyncio.sleep(10)
+                    continue
+                body = await resp.json()
+                name_change = NameChangeRequest.from_api_response(body)
+                return name_change, None
+        return None, error_msg
 
 async def rejectNameChange(credentials: WebsiteCredentials, current_name: str):
     request_url = f"{credentials.url}/api/player/rejectNameChange?name={current_name}"
