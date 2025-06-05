@@ -27,25 +27,6 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         name = self.requested_name.value.strip()
         await interaction.response.defer(ephemeral=True)
 
-        is_valid, error = check_valid_name(self.lb, name)
-        if not is_valid:
-            await interaction.followup.send(str(error), ephemeral=True)
-            return
-
-        # check if the user's discord account is already verified, fix their role if so
-        discord_check = await API.get.getPlayerFromDiscord(self.lb.website_credentials, interaction.user.id)
-        if discord_check:
-            await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
-            await fix_player_role(interaction.guild, self.lb, discord_check, interaction.user)
-            return
-        
-        # check if their name is taken on the leaderboard
-        name_check = await API.get.getPlayer(self.lb.website_credentials, name)
-        if name_check:
-            await interaction.followup.send("Another player has this name on the leaderboard! Please choose another.\nこの名前はすでに別のプレイヤーが使用しています！別の名前を入力してください。", 
-                                            ephemeral=True)
-            return
-        
         # find their MKC account from their Discord ID
         mkc_check = await searchMKCPlayersByDiscordID(interaction.client.config.mkc_credentials, interaction.user.id)
         if mkc_check is None:
@@ -66,6 +47,27 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
                                             ephemeral=True)
             return
         
+        # check if the user's discord account is already verified.
+        # if they are verified and have this leaderboard in their registrations list,
+        # fix their role.
+        # else, register them in this server and give them placement role
+        discord_check = await API.get.getPlayerAllGamesFromDiscord(self.lb.website_credentials, interaction.user.id)
+        if discord_check:
+            if self.lb.website_credentials.game in discord_check.registrations:
+                player = await API.get.getPlayerFromLounge(self.lb.website_credentials, discord_check.id)
+                await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
+                await fix_player_role(interaction.guild, self.lb, player, interaction.user)
+                return
+            else:
+                player, error = await API.post.registerPlayer(self.lb.website_credentials, discord_check.name, None)
+                if not player:
+                    await interaction.followup.send(f"An error occurred when verifying you in {interaction.guild.name}: {error}. Please try again later or contact a staff member",
+                                                    ephemeral=True)
+                    return
+                await interaction.followup.send(f"You have been successfully verified in {interaction.guild.name}!", ephemeral=True)
+                await fix_player_role(interaction.guild, self.lb, player, interaction.user)
+                return
+            
         # check if discord ID in lounge profile is different from discord ID in mkc profile
         mkc_id = mkc_check.player_list[0].id
         mkc_id_check = await API.get.getPlayerFromMKC(self.lb.website_credentials, mkc_id)
@@ -75,9 +77,21 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
                                             ephemeral=True)
             return
         
+        # check if their name is taken on the leaderboard
+        name_check = await API.get.getPlayer(self.lb.website_credentials, name)
+        if name_check:
+            await interaction.followup.send("Another player has this name on the leaderboard! Please choose another.\nこの名前はすでに別のプレイヤーが使用しています！別の名前を入力してください。", 
+                                            ephemeral=True)
+            return
+        
         valid_fcs = list(filter(lambda f: f.type == "switch", mkc_player.friend_codes))
         if not len(valid_fcs):
             await interaction.followup.send("You must have at least 1 Switch FC to be verified!", ephemeral=True)
+            return
+
+        is_valid, error = check_valid_name(self.lb, name)
+        if not is_valid:
+            await interaction.followup.send(str(error), ephemeral=True)
             return
         
         # check if player has already requested to be verified, or if another player requested to be verified with the same name
@@ -193,67 +207,3 @@ class VerifyView(discord.ui.View):
         else:
             leaderboard_name = next(iter(server_config.leaderboards.keys()))
             await self.status_leaderboard_callback(interaction, leaderboard_name)
-        
-class OldLoungeVerifyView(discord.ui.View):
-    @discord.ui.button(label="Verify", custom_id="old_lounge_verify_button", style=discord.ButtonStyle.primary)
-    async def verify_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
-        assert interaction.guild is not None
-        await interaction.response.defer(ephemeral=True)
-        server_config = interaction.client.config.servers.get(interaction.guild.id, None)
-        if not server_config:
-            await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
-            return
-        lb = next(iter(server_config.leaderboards.values()))
-        if lb.old_website_credentials is None:
-            await interaction.followup.send("This leaderboard does not have an old website linked to it.", ephemeral=True)
-            return
-        new_lounge_player = await API.get.getPlayerFromDiscord(lb.website_credentials, interaction.user.id)
-        if new_lounge_player:
-            await interaction.followup.send("You are already verified in this server!", ephemeral=True)
-            return
-        old_lounge_player = await API.get.getPlayerFromDiscord(lb.old_website_credentials, interaction.user.id)
-        if not old_lounge_player:
-            await interaction.followup.send("You do not have a Lounge account linked to this Discord account.", ephemeral=True)
-            return
-        if old_lounge_player.is_hidden:
-            await interaction.followup.send("Your MK8DX Lounge profile is hidden! Please make a ticket if you believe this is an error.",
-                                            ephemeral=True)
-            return
-        
-        new_lounge_taken_name = await API.get.getPlayer(lb.website_credentials, old_lounge_player.name)
-        if new_lounge_taken_name:
-            await interaction.followup.send("Your name from the MK8DX Lounge site is already taken on the MKWorld Lounge site! " + 
-                                            "Please make a ticket or use the new player interface (if available)", ephemeral=True)
-            return
-
-        assert old_lounge_player.registry_id is not None
-        mkc_player = await getMKCPlayerFromID(interaction.client.config.mkc_credentials, old_lounge_player.registry_id)
-        if not mkc_player:
-            await interaction.followup.send("An error occurred while searching MKCentral. Please try again later.", ephemeral=True)
-            return
-        print(mkc_player)
-        if not mkc_player.discord or int(mkc_player.discord.discord_id) != interaction.user.id:
-            await interaction.followup.send("Your MKCentral account is not linked to this Discord account! Please link your Discord here: "
-                                            + f"{interaction.client.config.mkc_credentials.url}/registry/players/edit-profile", ephemeral=True)
-            return
-        if mkc_player.is_banned:
-            await interaction.followup.send("You are banned from MKCentral, so you cannot verify. Please make a ticket if you believe this is an error.",
-                                            ephemeral=True)
-            return
-        
-        player, error = await API.post.createNewPlayer(lb.website_credentials, mkc_player.id, old_lounge_player.name, interaction.user.id)
-        if not player:
-            await interaction.followup.send(f"An error occurred when verifying: {error}", ephemeral=True)
-            return
-        
-        assert isinstance(interaction.user, discord.Member)
-        await interaction.followup.send(f"Successfully verified you in {interaction.guild.name}!", ephemeral=True)
-        await fix_player_role(interaction.guild, lb, player, interaction.user)
-        e = discord.Embed(title="Transferred Player from MK8DX Lounge")
-        e.add_field(name="Name", value=player.name)
-        e.add_field(name="MKC ID", value=player.mkc_id)
-        e.add_field(name="Discord", value=interaction.user.mention)
-        verification_log = interaction.guild.get_channel(lb.verification_log_channel)
-        if verification_log is not None:
-            assert isinstance(verification_log, discord.TextChannel)
-            await verification_log.send(embed=e)

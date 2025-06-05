@@ -25,7 +25,6 @@ class LeaderboardRank:
 class LeaderboardConfig:
     name: str
     website_credentials: WebsiteCredentials
-    old_website_credentials: WebsiteCredentials | None # used for mk8dx->mkworld transfer
     placement_role_id: int
     player_role_id: int
     name_change_log_channel: int
