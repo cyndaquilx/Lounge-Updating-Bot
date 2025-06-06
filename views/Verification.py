@@ -53,6 +53,9 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         # else, register them in this server and give them placement role
         discord_check = await API.get.getPlayerAllGamesFromDiscord(self.lb.website_credentials, interaction.user.id)
         if discord_check:
+            if discord_check.is_hidden:
+                await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.")
+                return
             if self.lb.website_credentials.game in discord_check.registrations:
                 player = await API.get.getPlayerFromLounge(self.lb.website_credentials, discord_check.id)
                 await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
