@@ -208,7 +208,7 @@ class VerifyView(discord.ui.View):
             await interaction.followup.send(f"You have been successfully verified in {interaction.guild.name}!", ephemeral=True)
             await fix_player_role(interaction.guild, lb, player, interaction.user)
 
-    @discord.ui.button(label="Transfer", custom_id="transfer_button", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Transfer", custom_id="transfer_button", style=discord.ButtonStyle.primary)
     async def transfer_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
         assert interaction.guild is not None
         server_config = interaction.client.config.servers.get(interaction.guild.id, None)
@@ -260,7 +260,7 @@ class VerifyView(discord.ui.View):
             await interaction.followup.send(f"Please make a ticket to get verified. Reason: {verification.reason}" +
                                             f"\n認証を受けるにはチケットを作成してください。理由： {verification.reason}", ephemeral=True)
         
-    @discord.ui.button(label="Check Status", custom_id="verify_status_button", style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label="Check Status", custom_id="verify_status_button", style=discord.ButtonStyle.secondary)
     async def status_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
         assert interaction.guild is not None
         await interaction.response.defer(ephemeral=True)
