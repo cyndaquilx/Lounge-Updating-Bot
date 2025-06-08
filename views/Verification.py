@@ -54,7 +54,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         discord_check = await API.get.getPlayerAllGamesFromDiscord(self.lb.website_credentials, interaction.user.id)
         if discord_check:
             if discord_check.is_hidden:
-                await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.")
+                await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.", ephemeral=True)
                 return
             if self.lb.website_credentials.game in discord_check.registrations:
                 player = await API.get.getPlayerFromLounge(self.lb.website_credentials, discord_check.id)
@@ -139,8 +139,8 @@ class VerifyView(discord.ui.View):
     
     @discord.ui.button(label="Verify", custom_id="verify_button", style=discord.ButtonStyle.green)
     async def verify_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
-        assert interaction.guild_id is not None
-        server_config = interaction.client.config.servers.get(interaction.guild_id, None)
+        assert interaction.guild is not None
+        server_config = interaction.client.config.servers.get(interaction.guild.id, None)
         if not server_config:
             await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
             return
@@ -157,6 +157,77 @@ class VerifyView(discord.ui.View):
         else:
             leaderboard_name = next(iter(server_config.leaderboards.keys()))
             await self.leaderboard_callback(interaction, leaderboard_name)
+
+    async def transfer_leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
+        assert interaction.guild is not None
+        assert isinstance(interaction.user, discord.Member)
+        lb = get_leaderboard_interaction(interaction, leaderboard)
+        # find their MKC account from their Discord ID
+        mkc_check = await searchMKCPlayersByDiscordID(interaction.client.config.mkc_credentials, interaction.user.id)
+        if mkc_check is None:
+            await interaction.followup.send("An error occurred while searching MKCentral. Please try again later.\nMKCentralの検索中にエラーが発生しました。後でもう一度お試しください。",
+                                            ephemeral=True)
+            return
+        if not mkc_check.player_count:
+            await interaction.followup.send(f"Your Discord ID is not linked with an MKCentral account. Please make an account at {interaction.client.config.mkc_credentials.url}, link your Discord account to it and try again."
+                                            + f"\nあなたのDiscord IDはMKCentralアカウントに登録されていません。{interaction.client.config.mkc_credentials.url} にてアカウントを作成し、Discordアカウントを登録してから再度お試しください。",
+                                            ephemeral=True)
+            return
+        
+        # prevent banned players from verifying
+        mkc_player = mkc_check.player_list[0]
+        if mkc_player.is_banned:
+            await interaction.followup.send("You are banned from MKCentral and cannot request to be verified. If you believe this to be a mistake, please create a ticket." +
+                                            "\nあなたはMKCentralからBANされているため、認証をリクエストすることができません。これが誤りだと思われる場合は、チケットを作成してください。",
+                                            ephemeral=True)
+            return
+        
+        # check if the user's discord account is already verified.
+        # if they are verified and have this leaderboard in their registrations list,
+        # fix their role.
+        # else, register them in this server and give them placement role
+        discord_check = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, interaction.user.id)
+        if discord_check is None:
+            await interaction.followup.send("Your Discord account is not currently linked to a Lounge profile. Use the Verify button instead.", ephemeral=True)
+            return
+        
+        if discord_check.is_hidden:
+            await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.", ephemeral=True)
+            return
+        
+        if lb.website_credentials.game in discord_check.registrations:
+            player = await API.get.getPlayerFromLounge(lb.website_credentials, discord_check.id)
+            await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
+            await fix_player_role(interaction.guild, lb, player, interaction.user)
+        else:
+            player, error = await API.post.registerPlayer(lb.website_credentials, discord_check.name, None)
+            if not player:
+                await interaction.followup.send(f"An error occurred when verifying you in {interaction.guild.name}: {error}. Please try again later or contact a staff member",
+                                                ephemeral=True)
+                return
+            await interaction.followup.send(f"You have been successfully verified in {interaction.guild.name}!", ephemeral=True)
+            await fix_player_role(interaction.guild, lb, player, interaction.user)
+
+    @discord.ui.button(label="Transfer", custom_id="transfer_button", style=discord.ButtonStyle.secondary)
+    async def transfer_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
+        assert interaction.guild is not None
+        server_config = interaction.client.config.servers.get(interaction.guild.id, None)
+        if not server_config:
+            await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
+            return
+        leaderboards = server_config.leaderboards
+        if len(leaderboards) > 1:
+            await interaction.response.send_message(
+                view=LeaderboardSelectView(
+                    leaderboards,
+                    self.transfer_leaderboard_callback
+                ),
+                ephemeral=True,
+                delete_after=30
+            )
+        else:
+            leaderboard_name = next(iter(server_config.leaderboards.keys()))
+            await self.transfer_leaderboard_callback(interaction, leaderboard_name)
 
     async def status_leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
         assert interaction.guild is not None
