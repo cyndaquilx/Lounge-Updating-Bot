@@ -211,6 +211,7 @@ class VerifyView(discord.ui.View):
     @discord.ui.button(label="Transfer", custom_id="transfer_button", style=discord.ButtonStyle.primary)
     async def transfer_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
         assert interaction.guild is not None
+        await interaction.response.defer(ephemeral=True)
         server_config = interaction.client.config.servers.get(interaction.guild.id, None)
         if not server_config:
             await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
