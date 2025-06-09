@@ -2,9 +2,9 @@ import discord
 from discord.ext import commands
 from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot, ListPlayer
 from custom_checks import check_valid_name, yes_no_check
-import API.get, API.post
+import API.post
 
-async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, mkcID: int, member: discord.Member | int, name: str, mmr: int | None, confirm=True) -> bool:
+async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, mkcID: int, member: discord.Member | int, name: str, mmr: int | None, confirm=True, check_exists=True) -> bool:
     assert ctx.guild is not None
 
     # if 0 is passed in, set member_id to None (used in text commands if we don't want to add a discord for the player)
@@ -14,10 +14,13 @@ async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, 
             found_member = None
         else:
             found_member = ctx.guild.get_member(member)
-            if not found_member:
+            if found_member:
+                member_id = found_member.id
+            elif check_exists:
                 await ctx.send(f"Member with ID {member} not found")
                 return False
-            member_id = found_member.id
+            else:
+                member_id = member
     else:
         member_id = member.id
         found_member = member
@@ -93,8 +96,8 @@ async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, 
     e = discord.Embed(title="Added new player")
     e.add_field(name="Name", value=name)
     e.add_field(name="MKC ID", value=mkcID)
-    if found_member:
-        e.add_field(name="Discord", value=found_member.mention)
+    if member_id:
+        e.add_field(name="Discord", value=f"<@{member_id}>")
     if mmr is not None:
         e.add_field(name="MMR", value=mmr)
     e.add_field(name="Added by", value=ctx.author.mention, inline=False)

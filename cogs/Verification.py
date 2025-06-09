@@ -102,7 +102,7 @@ class Verification(commands.Cog):
                 continue
 
             # if player hasn't been verified already just accept the request as normal
-            add_success = await add_player(ctx, lb, verification.mkc_id, verification.discord_id, verification.requested_name, None, confirm=False)
+            add_success = await add_player(ctx, lb, verification.mkc_id, verification.discord_id, verification.requested_name, None, confirm=False, check_exists=False)
             if add_success:
                 successes.append(verification.id)
                 await ctx.send(f"Successfully approved verification ID {verification.id}")
