@@ -73,7 +73,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
             
         # check if discord ID in lounge profile is different from discord ID in mkc profile
         mkc_id = mkc_check.player_list[0].id
-        mkc_id_check = await API.get.getPlayerFromMKC(self.lb.website_credentials, mkc_id)
+        mkc_id_check = await API.get.getPlayerAllGamesFromMKC(self.lb.website_credentials, mkc_id)
         if mkc_id_check:
             await interaction.followup.send("Your MKCentral account is linked to a Lounge profile, but your Lounge profile has a different Discord account linked to it. Please create a ticket for assistance."
                                             + "\nあなたのMKCentralアカウントは既にLoungeに登録されていますが、このアカウントとは異なるDiscord Idが登録されています。サポートチケットを作成してください。",
