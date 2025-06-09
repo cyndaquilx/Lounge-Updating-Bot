@@ -81,7 +81,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
             return
         
         # check if their name is taken on the leaderboard
-        name_check = await API.get.getPlayer(self.lb.website_credentials, name)
+        name_check = await API.get.getPlayerAllGames(self.lb.website_credentials, name)
         if name_check:
             await interaction.followup.send("Another player has this name on the leaderboard! Please choose another.\nこの名前はすでに別のプレイヤーが使用しています！別の名前を入力してください。", 
                                             ephemeral=True)
