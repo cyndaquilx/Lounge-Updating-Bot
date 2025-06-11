@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from models import LeaderboardConfig, UpdatingBot
 import API.get, API.post
-from custom_checks import yes_no_check, command_check_admin_mkc_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
+from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
 from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, give_placement_role, fix_player_role, add_player
 from typing import Optional, Union
@@ -14,21 +14,21 @@ class Players(commands.Cog):
 
     player_group = app_commands.Group(name="player", description="Manage players", guild_only=True)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addPlayer", aliases=["add"])
     @commands.guild_only()
     async def add_player_text(self, ctx, mkc_id:int, member:discord.Member | int, *, name):
         lb = get_leaderboard(ctx)
         await add_player(ctx, lb, mkc_id, member, name, None)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addAndPlace", aliases=['apl'])
     @commands.guild_only()
     async def add_and_place_text(self, ctx, mkcID:int, mmr:int, member:discord.Member | int, *, name):
         lb = get_leaderboard(ctx)
         await add_player(ctx, lb, mkcID, member, name, mmr)
 
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @player_group.command(name="add")
     async def add_player_slash(self, interaction: discord.Interaction, mkc_id:int, member:discord.Member, name: str, mmr: int | None, leaderboard: Optional[str]):
@@ -260,7 +260,7 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await place_player_with_mmr(ctx, lb, mmr, name)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="forcePlace")
     @commands.guild_only()
     async def force_place_text(self, ctx, mmr:int, *, name):
@@ -282,7 +282,7 @@ class Players(commands.Cog):
         e.add_field(name="MKC ID", value=mkc_field)
         await ctx.send(embed=e)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addAllDiscords")
     @commands.guild_only()
     async def add_all_discords_text(self, ctx: commands.Context):

@@ -72,6 +72,7 @@ class ServerConfig:
     staff_roles: list[int]
     admin_roles: list[int]
     mkc_roles: list[int]
+    verification_roles: list[int]
     chat_restricted_roles: list[int]
     name_restricted_roles: list[int]
     tier_channel_categories: list[int]

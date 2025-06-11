@@ -15,7 +15,7 @@ class Verification(commands.Cog):
     verify_group = app_commands.Group(name="verify", description="Manage verification requests", guild_only=True)
 
     @verify_group.command(name="new_view")
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def new_verify_view(self, interaction: discord.Interaction):
         assert interaction.guild is not None
         e = discord.Embed(title=f"{interaction.guild.name}")
@@ -31,7 +31,7 @@ class Verification(commands.Cog):
         ]
     )
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def pending_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -59,7 +59,7 @@ class Verification(commands.Cog):
         ]
     )
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def pending_ticket_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -113,7 +113,7 @@ class Verification(commands.Cog):
 
     @verify_group.command(name="approve")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def approve_pending_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -133,7 +133,7 @@ class Verification(commands.Cog):
 
     @verify_group.command(name="approve_many")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def approve_many_pending_verifications(self, interaction: discord.Interaction[UpdatingBot], request_ids: str, leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -166,7 +166,7 @@ class Verification(commands.Cog):
         ]
     )
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def approve_all_pending_verifications(self, interaction: discord.Interaction[UpdatingBot], countries: app_commands.Choice[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -180,7 +180,7 @@ class Verification(commands.Cog):
 
     @verify_group.command(name="deny")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def deny_pending_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, reason: Optional[str], send_dm: Optional[bool], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -228,7 +228,7 @@ class Verification(commands.Cog):
 
     @verify_group.command(name="request_ticket")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def request_ticket_for_verification(self, interaction: discord.Interaction[UpdatingBot], id: int, reason: Optional[str], leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -285,7 +285,7 @@ class Verification(commands.Cog):
 
     @verify_group.command(name="info")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def verification_info(self, interaction: discord.Interaction[UpdatingBot], id: int, leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
@@ -298,7 +298,7 @@ class Verification(commands.Cog):
 
     @verify_group.command(name="info_discord")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     async def verification_info_by_discord_id(self, interaction: discord.Interaction[UpdatingBot], member: discord.Member, leaderboard: Optional[str]):
         assert interaction.guild is not None
         ctx = await commands.Context.from_interaction(interaction)
