@@ -42,13 +42,15 @@ async def create_mmr_table(lb: LeaderboardConfig, table: Table):
             tier_text = f"Tier {table.tier}"
         
         col_labels = ["", format_text, "", "", "", tier_text, ""]
+
+        num_players = sum([1 for t in table.teams for _ in t.scores])
         
         top_row_colors = [title_color]*7
         if table.size > 1:
             #num of blank rows + num players + num extra rows
-            num_rows = int(lb.players_per_mogi/table.size - 1 + lb.players_per_mogi+3)
+            num_rows = int(num_players/table.size - 1 + num_players+3)
         else:
-            num_rows = lb.players_per_mogi + 3
+            num_rows = num_players + 3
 
         cell_data = []
         cell_colors = []

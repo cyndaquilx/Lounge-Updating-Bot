@@ -39,9 +39,7 @@ class Tables(commands.Cog):
     @commands.command()
     async def submit(self, ctx: commands.Context, size:int, tier: str, *, data: str):
         lb = get_leaderboard(ctx)
-        if size not in lb.valid_formats:
-            await ctx.send(f"Your size is not valid. Correct sizes are: {lb.valid_formats}")
-            return
+        
         tier = tier.upper()
         if tier not in lb.tier_results_channels.keys():
             await ctx.send(f"Your tier is not valid. Correct tiers are: {list(lb.tier_results_channels.keys())}")
@@ -85,7 +83,7 @@ class Tables(commands.Cog):
             date = datetime.strptime(date_str, "%Y-%m-%d")
 
         lines = filter(removeExtra, data.split("\n"))
-        names = []
+        names: list[str] = []
         scores: list[list[int]] = []
         for line in lines:
             # removes country flag brackets
@@ -97,9 +95,21 @@ class Tables(commands.Cog):
                 await ctx.send(f"One of your submitted scores has {len(gp_scores)} GPs but this leaderboard requires {lb.gps_per_mogi} GPs.")
                 return
             scores.append(gp_scores)
-        if len(names) != lb.players_per_mogi:
-            await ctx.send(f"Your table does not contain {lb.players_per_mogi} valid score lines, try again!")
+        player_settings = lb.player_settings.get(len(names), None)
+        if player_settings is None:
+            valid_player_counts = " or ".join([str(c) for c in lb.player_settings.keys()])
+            await ctx.send(f"Your table does not contain {valid_player_counts} valid score lines, try again!")
             return
+        valid_formats = player_settings.valid_formats
+        if size not in valid_formats:
+            await ctx.send(f"Your size is not valid. Correct sizes are: {valid_formats}")
+            return
+        
+        lower_names = [n.lower() for n in names]
+        if len(set(lower_names)) < len(lower_names):
+            await ctx.send("Duplicate names are not allowed, please try again.")
+            return
+        
         #checking names with the leaderboard API
         players = await API.get.getPlayers(lb.website_credentials, names)
         err_str = ""
@@ -115,8 +125,7 @@ class Tables(commands.Cog):
         if len(err_str) > 0:
             await ctx.send(f"The following players cannot be found on the leaderboard:\n{err_str}")
             return
-        correct_names = [p.name for p in found_players]
-        table = TableBasic.from_text(size, tier, correct_names, scores, ctx.author.id, date)
+        table = TableBasic.from_text(size, tier, found_players, scores, ctx.author.id, date)
         await submit_table(ctx, lb, table)
 
     @app_commands.guilds(280462328603082753)
@@ -168,8 +177,7 @@ class Tables(commands.Cog):
             if len(err_str) > 0:
                 await ctx.send(f"The following players cannot be found on the leaderboard for table ID {match_id}:\n{err_str}")
                 return
-            correct_names = [p.name for p in found_players]
-            table = TableBasic.from_text(size, "ALL", correct_names, scores, ctx.author.id, date)
+            table = TableBasic.from_text(size, "ALL", found_players, scores, ctx.author.id, date)
             res = await submit_table(ctx, lb, table, bypass_confirmation=True)
             if res is None:
                 await ctx.send(f"Stopped before match ID {match_id}")

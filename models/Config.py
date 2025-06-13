@@ -22,6 +22,11 @@ class LeaderboardRank:
     mmr: int
 
 @dataclass
+class PlayerCountSettings:
+    points_per_race: int
+    valid_formats: list[int]
+
+@dataclass
 class LeaderboardConfig:
     name: str
     website_credentials: WebsiteCredentials
@@ -34,13 +39,11 @@ class LeaderboardConfig:
     verification_log_channel: int
     mute_ban_list_channel: int
     quick_start_channel: int
-    players_per_mogi: int
-    points_per_race: int
+    player_settings: dict[int, PlayerCountSettings]
     races_per_mogi: int
     gps_per_mogi: int
     enable_verification_dms: bool
     enable_bulk_placement_endpoint: bool
-    valid_formats: list[int]
     allow_numbered_names: bool
     ranks: list[LeaderboardRank]
     tier_results_channels: dict[str, int]
