@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from models import LeaderboardConfig, UpdatingBot
+from models import LeaderboardConfig, UpdatingBot, PlayerAllGames
 import API.get, API.post
 from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
@@ -35,6 +35,28 @@ class Players(commands.Cog):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await add_player(ctx, lb, mkc_id, member, name, mmr)
+
+    async def register_player(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: PlayerAllGames):
+        assert ctx.guild is not None
+        registered_player, error = await API.post.registerPlayer(lb.website_credentials, player.name)
+        if not registered_player:
+            await ctx.send(f"An error occurred when registering the player: {error}")
+            return
+        await ctx.send(f"Successfully registered the player in this server")
+        if registered_player.discord_id:
+            await fix_player_role(ctx.guild, lb, registered_player, int(registered_player.discord_id))
+
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @player_group.command(name="register")
+    async def register_player_slash(self, interaction: discord.Interaction, member:discord.Member, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        player = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, member.id)
+        if not player:
+            await ctx.send("Player with that Discord ID was not found")
+            return
+        await self.register_player(ctx, lb, player)
 
     async def hide_player(self, ctx, lb: LeaderboardConfig, name: str):
         success, text = await API.post.hidePlayer(lb.website_credentials, name)
