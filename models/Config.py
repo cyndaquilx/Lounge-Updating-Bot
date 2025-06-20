@@ -80,6 +80,7 @@ class ServerConfig:
     name_restricted_roles: list[int]
     tier_channel_categories: list[int]
     ticket_categories: list[int]
+    name_synced_servers: list[int]
     leaderboards: dict[str, LeaderboardConfig]
     reaction_log_channel: int | None
 

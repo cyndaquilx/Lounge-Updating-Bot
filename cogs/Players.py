@@ -287,7 +287,7 @@ class Players(commands.Cog):
     @commands.guild_only()
     async def force_place_text(self, ctx, mmr:int, *, name):
         lb = get_leaderboard(ctx)
-        await place_player_with_mmr(ctx, lb, mmr, name, True)
+        await place_player_with_mmr(ctx, lb, mmr, name, force=True)
 
     @commands.command(name='mkcPlayer', aliases=['mkc'])
     @commands.guild_only()

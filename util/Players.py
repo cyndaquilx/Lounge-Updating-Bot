@@ -132,7 +132,7 @@ async def give_placement_role(ctx: commands.Context[UpdatingBot], lb: Leaderboar
     await ctx.send(f"Managed to find member {member.display_name} and edit their roles")
     return True
 
-async def place_player_with_mmr(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, mmr: int, name: str, force=False):
+async def place_player_with_mmr(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, mmr: int, name: str, force=False, log=True):
     assert ctx.guild is not None
     player, error = await API.post.placePlayer(lb.website_credentials, mmr, name, force=force)
     if player is None:
@@ -142,8 +142,8 @@ async def place_player_with_mmr(ctx: commands.Context[UpdatingBot], lb: Leaderbo
     success = await give_placement_role(ctx, lb, player, mmr)
     if not success:
         return
-    if force:
-        e = discord.Embed(title="Player force placed")
+    if log:
+        e = discord.Embed(title="Placed player")
         e.add_field(name="Player", value=player.name, inline=False)
         e.add_field(name="MMR", value=mmr)
         if player.discord_id:

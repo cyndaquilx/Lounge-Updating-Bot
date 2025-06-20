@@ -69,4 +69,4 @@ async def check_placements(ctx: commands.Context, lb: LeaderboardConfig, table: 
         for score in team.scores:
             if score.prev_mmr is None:
                 place_mmr = lb.get_place_mmr(score.score)
-                await place_player_with_mmr(ctx, lb, place_mmr, score.player.name)
+                await place_player_with_mmr(ctx, lb, place_mmr, score.player.name, log=False)

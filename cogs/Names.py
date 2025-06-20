@@ -3,7 +3,7 @@ import discord
 from discord import app_commands, User, Member
 from discord.ext import commands
 from custom_checks import (check_name_restricted_roles, check_valid_name, yes_no_check, 
-                           app_command_check_updater_roles, command_check_updater_roles, 
+                           app_command_check_staff_roles, command_check_staff_roles,
                            app_command_check_admin_roles, app_command_check_name_restricted_roles)
 from discord.utils import format_dt
 
@@ -89,7 +89,7 @@ class Names(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.player_request_name(ctx, lb, name)
 
-    async def approve_name_change(self, ctx: commands.Context, lb: LeaderboardConfig, old_name: str):
+    async def approve_name_change(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, old_name: str):
         assert ctx.guild is not None
         name_request, error = await API.post.acceptNameChange(lb.website_credentials, old_name)
         if not name_request:
@@ -128,16 +128,28 @@ class Names(commands.Cog):
             await member.edit(nick=name_request.new_name)
         except Exception as e:
             pass
+        
+        # change their name in other servers where the nickname is synced
+        server_config = ctx.bot.config.servers[ctx.guild.id]
+        for guild_id in server_config.name_synced_servers:
+            guild = ctx.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+            try:
+                guild_member = await guild.fetch_member(name_request.discord_id)
+                await guild_member.edit(nick=name_request.new_name)
+            except:
+                continue
 
     @name_group.command(name="approve")
-    @app_commands.check(app_command_check_updater_roles)
+    @app_commands.check(app_command_check_staff_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def approve_name_slash(self, interaction: discord.Interaction, old_name: str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.approve_name_change(ctx, lb, old_name)
 
-    @commands.check(command_check_updater_roles)
+    @commands.check(command_check_staff_roles)
     @commands.command(name="approveName", aliases=['an'])
     async def approve_name_text(self, ctx: commands.Context, *, old_name: str):
         lb = get_leaderboard(ctx)
@@ -157,14 +169,14 @@ class Names(commands.Cog):
         msg += "```"
         await ctx.send(msg)
 
-    @commands.check(command_check_updater_roles)
+    @commands.check(command_check_staff_roles)
     @commands.command(name="pendingNames", aliases=['pn'])
     async def pending_names_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.get_pending_names(ctx, lb)
 
     @name_group.command(name="pending")
-    @app_commands.check(app_command_check_updater_roles)
+    @app_commands.check(app_command_check_staff_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def pending_names_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
@@ -183,14 +195,14 @@ class Names(commands.Cog):
             await self.approve_name_change(ctx, lb, change.current_name)
         await ctx.send("Approved all name changes")
 
-    @commands.check(command_check_updater_roles)
+    @commands.check(command_check_staff_roles)
     @commands.command(name="approveNamesAll", aliases=['ana'])
     async def approve_all_names_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.approve_all_name_changes(ctx, lb)
 
     @name_group.command(name="approve_all")
-    @app_commands.check(app_command_check_updater_roles)
+    @app_commands.check(app_command_check_staff_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def approve_all_names_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
@@ -232,7 +244,7 @@ class Names(commands.Cog):
             except Exception as e:
                 pass
 
-    @commands.check(command_check_updater_roles)
+    @commands.check(command_check_staff_roles)
     @commands.command(name="rejectName", aliases=['rjn'])
     async def reject_name_text(self, ctx: commands.Context, *, args: str):
         lb = get_leaderboard(ctx)
@@ -244,14 +256,14 @@ class Names(commands.Cog):
         await self.reject_name_change(ctx, lb, name, reason)
 
     @name_group.command(name="reject")
-    @app_commands.check(app_command_check_updater_roles)
+    @app_commands.check(app_command_check_staff_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def reject_name_slash(self, interaction: discord.Interaction, old_name: str, reason: str | None, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.reject_name_change(ctx, lb, old_name, reason)
 
-    async def update_player_name(self, ctx: commands.Context, lb: LeaderboardConfig, oldName: str, newName: str):
+    async def update_player_name(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, oldName: str, newName: str):
         assert ctx.guild is not None
         is_valid, error = check_valid_name(lb, newName)
         if not is_valid:
@@ -304,11 +316,23 @@ class Names(commands.Cog):
         member = ctx.guild.get_member(int(player.discord_id))
         if member is None:
             await ctx.send(f"Couldn't find member {player.name}, please change their nickname manually")
-            return
-        await member.edit(nick=newName)
-        await ctx.send("Successfully changed their nickname in server")
+        else:
+            await member.edit(nick=newName)
+            await ctx.send("Successfully changed their nickname in server")
 
-    @commands.check(command_check_updater_roles)
+        # change their name in other servers where the nickname is synced
+        server_config = ctx.bot.config.servers[ctx.guild.id]
+        for guild_id in server_config.name_synced_servers:
+            guild = ctx.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+            try:
+                guild_member = await guild.fetch_member(int(player.discord_id))
+                await guild_member.edit(nick=newName)
+            except:
+                continue
+        
+    @commands.check(command_check_staff_roles)
     @commands.command(name="updateName", aliases=['un'])
     async def update_name_text(self, ctx, *, args):
         lb = get_leaderboard(ctx)
@@ -321,7 +345,7 @@ class Names(commands.Cog):
         await self.update_player_name(ctx, lb, oldName, newName)
 
     @name_group.command(name="update")
-    @app_commands.check(app_command_check_updater_roles)
+    @app_commands.check(app_command_check_staff_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def update_name_slash(self, interaction: discord.Interaction, old_name: str, new_name: str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
