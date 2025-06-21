@@ -8,7 +8,8 @@ from typing import Union
 async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: TableBasic, bypass_confirmation = False) -> Table | None:
     assert ctx.guild is not None
     total = table.score_total()
-    expected_total = int(lb.races_per_mogi*lb.points_per_race)
+    num_players = sum([1 for t in table.teams for _ in t.scores])
+    expected_total = lb.player_settings[num_players].points_per_race*lb.races_per_mogi
     embedded = None
     if not bypass_confirmation:
         e = discord.Embed(title="Table")
@@ -19,7 +20,7 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
         embedded = await ctx.send(content=content, embed=e)
         if not await yes_no_check(ctx, embedded):
             return None
-    
+
     sent_table, error = await API.post.createTable(lb.website_credentials, table)
     if sent_table is None:
         await ctx.send(f"An error occurred trying to send the table to the website!\n{error}")

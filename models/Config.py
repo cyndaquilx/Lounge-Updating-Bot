@@ -5,6 +5,12 @@ class WebsiteCredentials:
     url: str
     username: str
     password: str
+    game: str | None
+
+@dataclass
+class MKCentralCredentials:
+    url: str
+    api_token: str | None
 
 @dataclass
 class LeaderboardRank:
@@ -16,7 +22,13 @@ class LeaderboardRank:
     mmr: int
 
 @dataclass
+class PlayerCountSettings:
+    points_per_race: int
+    valid_formats: list[int]
+
+@dataclass
 class LeaderboardConfig:
+    name: str
     website_credentials: WebsiteCredentials
     placement_role_id: int
     player_role_id: int
@@ -24,15 +36,14 @@ class LeaderboardConfig:
     name_request_log_channel: int
     name_request_channel: int
     updating_log_channel: int
+    verification_log_channel: int
     mute_ban_list_channel: int
     quick_start_channel: int
-    players_per_mogi: int
-    points_per_race: int
+    player_settings: dict[int, PlayerCountSettings]
     races_per_mogi: int
     gps_per_mogi: int
     enable_verification_dms: bool
     enable_bulk_placement_endpoint: bool
-    valid_formats: list[int]
     allow_numbered_names: bool
     ranks: list[LeaderboardRank]
     tier_results_channels: dict[str, int]
@@ -60,13 +71,16 @@ class LeaderboardConfig:
 class ServerConfig:
     prefixes: dict[str, str]
     reporter_roles: list[int]
+    updater_roles: list[int]
     staff_roles: list[int]
     admin_roles: list[int]
     mkc_roles: list[int]
+    verification_roles: list[int]
     chat_restricted_roles: list[int]
     name_restricted_roles: list[int]
     tier_channel_categories: list[int]
     ticket_categories: list[int]
+    name_synced_servers: list[int]
     leaderboards: dict[str, LeaderboardConfig]
     reaction_log_channel: int | None
 
@@ -74,6 +88,9 @@ class ServerConfig:
 class BotConfig:
     token: str
     application_id: int
+    db_directory: str
+    db_filename: str
+    mkc_credentials: MKCentralCredentials
     servers: dict[int, ServerConfig]
     
     def get_prefixes(self):

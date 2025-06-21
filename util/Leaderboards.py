@@ -4,7 +4,8 @@ from discord.ext import commands
 from discord import Interaction
 
 def get_server_config(ctx: commands.Context[UpdatingBot]) -> ServerConfig:
-    assert ctx.guild is not None
+    if ctx.guild is None:
+        raise GuildNotFoundException
     server_info: ServerConfig | None = ctx.bot.config.servers.get(ctx.guild.id, None)
     if not server_info:
         raise GuildNotFoundException
@@ -13,7 +14,8 @@ def get_server_config(ctx: commands.Context[UpdatingBot]) -> ServerConfig:
 def get_server_config_from_interaction(interaction: Interaction[UpdatingBot]):
     """Gets server information from interaction"""
     # Had to define this as was receiving "interaction does not have command data"
-    assert interaction.guild is not None
+    if interaction.guild is None:
+        raise GuildNotFoundException
 
     server_info: ServerConfig | None = interaction.client.config.servers.get(
         interaction.guild.id

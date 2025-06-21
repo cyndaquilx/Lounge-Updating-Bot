@@ -5,8 +5,8 @@ from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
 from util import get_leaderboard_slash, get_leaderboard, set_multipliers, check_against_automod_lists
-from models import LeaderboardConfig, ServerConfig
-from custom_checks import app_command_check_reporter_roles, app_command_check_staff_roles, check_role_list, command_check_staff_roles, check_staff_roles
+from models import LeaderboardConfig, ServerConfig, UpdatingBot
+from custom_checks import app_command_check_reporter_roles, app_command_check_updater_roles, check_role_list, command_check_updater_roles, check_updater_roles
 import API.get
 import custom_checks
 
@@ -156,7 +156,7 @@ CHECK_BOX = "\U00002611"
 X_MARK = "\U0000274C"
 
 class Request(commands.Cog):
-    def __init__ (self, bot):
+    def __init__ (self, bot: UpdatingBot):
         self.bot = bot
 
     #Dictionary containing: Message ID -> RequestInstance
@@ -284,7 +284,7 @@ class Request(commands.Cog):
             #Repick automation
             for i in range(request_data.penalty_instance.total_repick):
                 if i == 0:
-                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=False, is_request=True)
+                    id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=True, is_request=True)
                 else:
                     id_result += await penalties_cog.add_penalty(request_data.initial_ctx, request_data.leaderboard, request_data.penalty_instance.amount, "", [player.name], reason=request_data.penalty_instance.penalty_name, table_id=request_data.penalty_instance.table_id, is_anonymous=True, is_strike=True, is_request=True)
         else:
@@ -371,7 +371,7 @@ class Request(commands.Cog):
         if(player == None):
             await ctx.send(f"The following player could not be found: {player_name}", ephemeral=True)
             return
-        if not check_staff_roles(ctx):
+        if not check_updater_roles(ctx):
             #Check that the reporter is in the tab
             is_in_tab = False
             for table_team in table.teams:
@@ -451,13 +451,13 @@ class Request(commands.Cog):
         if len(result_string) > 0:
             await ctx.send(result_string)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name='pendingPenalties', aliases=['penalties', 'pens'])
     async def pending_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.pending_requests(ctx, lb)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name='pending_penalties')
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.guild_only()
@@ -477,13 +477,13 @@ class Request(commands.Cog):
                 assert isinstance(ctx.author, discord.Member)
                 await ctx.send(await self.accept_request_process(ctx.author, message_id))
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name='acceptPenalty', aliases=['acceptPen'])
     async def accept_request_command_text(self, ctx: commands.Context, message_id: int = commands.parameter(description="Discord ID of the message in the penalty channel")):
         lb = get_leaderboard(ctx)
         await self.accept_request(ctx, lb, message_id)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name='accept_penalty')
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.describe(message_id="Discord ID of the message in the penalty channel")
@@ -509,13 +509,13 @@ class Request(commands.Cog):
                 assert isinstance(ctx.author, discord.Member)
                 await ctx.send(await self.refuse_request_process(ctx.author, message_id))
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name='refusePenalty', aliases=['refusePen', 'denyPen', 'denyPenalty'])
     async def refuse_request_command_text(self, ctx: commands.Context, message_id: int = commands.parameter(description="Discord ID of the message in the penalty channel")):
         lb = get_leaderboard(ctx)
         await self.refuse_request(ctx, lb, message_id)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name='refuse_penalty')
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.guild_only()
@@ -547,13 +547,13 @@ class Request(commands.Cog):
             pass
         await ctx.send("All requests have been accepted.")
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name='acceptAllPenalties', aliases=['acceptAllPens', 'uapens', 'aapens'])
     async def accept_all_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
         await self.accept_all_request(ctx, lb)
 
-    @app_commands.check(app_command_check_staff_roles)
+    @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name='accept_all_penalties')
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.guild_only()

@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus, PlayerPlacement
 from typing import Tuple
 
@@ -6,6 +7,8 @@ headers = {'Content-type': 'application/json'}
 
 async def createBonus(credentials: WebsiteCredentials, name: str, amount: int):
     request_url = f"{credentials.url}/api/bonus/create?name={name}&amount={amount}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if resp.status != 201:
@@ -17,6 +20,8 @@ async def createBonus(credentials: WebsiteCredentials, name: str, amount: int):
 
 async def bonusMKC(credentials: WebsiteCredentials, mkc:int, amount:int):
     request_url = f"{credentials.url}/api/bonus/create?mkcId={mkc}&amount={amount}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if resp.status != 201:
@@ -28,6 +33,8 @@ async def bonusMKC(credentials: WebsiteCredentials, mkc:int, amount:int):
 
 async def createPenalty(credentials: WebsiteCredentials, name: str, amount: int, isStrike: bool):
     request_url = f"{credentials.url}/api/penalty/create?name={name}&amount={amount}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     if isStrike:
         request_url += "&isStrike=true"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
@@ -44,6 +51,8 @@ async def createPenalty(credentials: WebsiteCredentials, name: str, amount: int,
 
 async def deletePenalty(credentials: WebsiteCredentials, pen_id: int):
     request_url = f"{credentials.url}/api/penalty?id={pen_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.delete(request_url,headers=headers) as resp:
             if resp.status == 200:
@@ -52,6 +61,8 @@ async def deletePenalty(credentials: WebsiteCredentials, pen_id: int):
 
 async def createNewPlayer(credentials: WebsiteCredentials, mkcid:int, name, discordid: int | None = None) -> Tuple[Player | None, str | None]:
     request_url = f"{credentials.url}/api/player/create?name={name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     if mkcid > 0:
         request_url += f"&mkcid={mkcid}"
     if discordid:
@@ -65,8 +76,10 @@ async def createNewPlayer(credentials: WebsiteCredentials, mkcid:int, name, disc
             player = Player.from_api_response(body)
             return player, None
 
-async def createPlayerWithMMR(credentials: WebsiteCredentials, mkcid:int, mmr:int, name, discordid: int | None = None) -> Tuple[Player | None, str | None]:
+async def createPlayerWithMMR(credentials: WebsiteCredentials, mkcid:int, mmr:int, name: str, discordid: int | None = None) -> Tuple[Player | None, str | None]:
     request_url = f"{credentials.url}/api/player/create?name={name}&mmr={mmr}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     if mkcid > 0:
         request_url += f"&mkcid={mkcid}"
     if discordid:
@@ -80,8 +93,23 @@ async def createPlayerWithMMR(credentials: WebsiteCredentials, mkcid:int, mmr:in
             player = Player.from_api_response(body)
             return player, None
         
+async def registerPlayer(credentials: WebsiteCredentials, name: str, mmr: int | None = None) -> Tuple[Player | None, str | None]:
+    request_url = f"{credentials.url}/api/player/register?game={credentials.game}&name={name}"
+    if mmr is not None:
+        request_url += f"&mmr={mmr}"
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.post(request_url,headers=headers) as resp:
+            if resp.status != 201:
+                error = await resp.text()
+                return None, error
+            body = await resp.json()
+            player = Player.from_api_response(body)
+            return player, None
+        
 async def placePlayer(credentials: WebsiteCredentials, mmr:int, name:str, force=False):
     request_url = f"{credentials.url}/api/player/placement?name={name}&mmr={mmr}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     if force:
         request_url += "&force=true"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
@@ -95,6 +123,8 @@ async def placePlayer(credentials: WebsiteCredentials, mmr:int, name:str, force=
         
 async def placeManyPlayers(credentials: WebsiteCredentials, placements: list[PlayerPlacement]):
     request_url = f"{credentials.url}/api/player/bulkPlacement"
+    if credentials.game:
+        request_url += f"?game={credentials.game}"
     body = {"playerPlacements": [{"name": p.name, "mmr": p.mmr} for p in placements]}
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers,json=body) as resp:
@@ -105,6 +135,8 @@ async def placeManyPlayers(credentials: WebsiteCredentials, placements: list[Pla
 
 async def updatePlayerName(credentials: WebsiteCredentials, oldName: str, newName: str):
     request_url = f"{credentials.url}/api/player/update/name?name={oldName}&newName={newName}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if resp.status == 204:
@@ -116,6 +148,8 @@ async def updatePlayerName(credentials: WebsiteCredentials, oldName: str, newNam
 
 async def updateMKCid(credentials: WebsiteCredentials, name, newID):
     request_url = f"{credentials.url}/api/player/update/mkcId?name={name}&newMkcId={newID}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if resp.status == 404:
@@ -126,6 +160,8 @@ async def updateMKCid(credentials: WebsiteCredentials, name, newID):
 
 async def deleteTable(credentials: WebsiteCredentials, table_id: int):
     request_url = f"{credentials.url}/api/table?tableId={table_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.delete(request_url,headers=headers) as resp:
             if resp.status == 200:
@@ -134,6 +170,8 @@ async def deleteTable(credentials: WebsiteCredentials, table_id: int):
         
 async def createTable(credentials: WebsiteCredentials, table: TableBasic):
     request_url = f"{credentials.url}/api/table/create?"
+    if credentials.game:
+        request_url += f"game={credentials.game}"
     body = table.to_submission_format()
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers,json=body) as resp:
@@ -146,6 +184,8 @@ async def createTable(credentials: WebsiteCredentials, table: TableBasic):
 
 async def setMultipliers(credentials: WebsiteCredentials, table_id: int, multipliers):
     request_url = f"{credentials.url}/api/table/setMultipliers?tableId={table_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers,json=multipliers) as resp:
             if resp.status != 200:
@@ -154,6 +194,8 @@ async def setMultipliers(credentials: WebsiteCredentials, table_id: int, multipl
 
 async def setScores(credentials: WebsiteCredentials, table_id: int, scores: dict[str, list[int]]):
     request_url = f"{credentials.url}/api/table/setScores?tableId={table_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     body = {}
     for name, gp_scores in scores.items():
         if len(gp_scores) == 1:
@@ -168,30 +210,42 @@ async def setScores(credentials: WebsiteCredentials, table_id: int, scores: dict
 
 async def setTableMessageId(credentials: WebsiteCredentials, table_id:int, msg_id:int):
     request_url = f"{credentials.url}/api/table/setTableMessageId?tableId={table_id}&tableMessageId={msg_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             return
 
 async def setUpdateMessageId(credentials: WebsiteCredentials, table_id:int, msg_id:int):
     request_url = f"{credentials.url}/api/table/setUpdateMessageId?tableId={table_id}&updateMessageId={msg_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             return
 
 async def verifyTable(credentials: WebsiteCredentials, table_id:int):
     request_url = f"{credentials.url}/api/table/verify?tableId={table_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
-        async with session.post(request_url,headers=headers) as resp:
-            if resp.status != 200:
-                resp_text = await resp.text()
-                error_msg = f"{resp.status} - {resp_text}"
-                return None, error_msg
-            body = await resp.json()
-            table = Table.from_api_response(body)
-            return table, None
+        error_msg = None
+        for _ in range(5):
+            async with session.post(request_url,headers=headers) as resp:
+                if resp.status != 200:
+                    resp_text = await resp.text()
+                    error_msg = f"{resp.status} - {resp_text}"
+                    await asyncio.sleep(10)
+                    continue
+                body = await resp.json()
+                table = Table.from_api_response(body)
+                return table, None
+        return None, error_msg
 
 async def updateDiscord(credentials: WebsiteCredentials, name, discord_id:int):
     request_url = f"{credentials.url}/api/player/update/discordId?name={name}&newDiscordId={discord_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if int(resp.status/100) != 2:
@@ -202,6 +256,8 @@ async def updateDiscord(credentials: WebsiteCredentials, name, discord_id:int):
 
 async def hidePlayer(credentials: WebsiteCredentials, name):
     request_url = f"{credentials.url}/api/player/hide?name={name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if int(resp.status/100) != 2:
@@ -212,6 +268,8 @@ async def hidePlayer(credentials: WebsiteCredentials, name):
 
 async def unhidePlayer(credentials: WebsiteCredentials, name):
     request_url = f"{credentials.url}/api/player/unhide?name={name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if int(resp.status/100) != 2:
@@ -222,6 +280,8 @@ async def unhidePlayer(credentials: WebsiteCredentials, name):
 
 async def refreshPlayerData(credentials: WebsiteCredentials, name):
     request_url = f"{credentials.url}/api/player/refreshRegistryData?name={name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if int(resp.status/100) != 2:
@@ -232,6 +292,8 @@ async def refreshPlayerData(credentials: WebsiteCredentials, name):
 
 async def requestNameChange(credentials: WebsiteCredentials, old_name, new_name):
     request_url = f"{credentials.url}/api/player/requestNameChange?name={old_name}&newName={new_name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url,headers=headers) as resp:
             if int(resp.status/100) != 2:
@@ -242,6 +304,8 @@ async def requestNameChange(credentials: WebsiteCredentials, old_name, new_name)
 
 async def setNameChangeMessageId(credentials: WebsiteCredentials, current_name, message_id):
     request_url = f"{credentials.url}/api/player/setNameChangeMessageId?name={current_name}&messageId={message_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url, headers=headers) as resp:
             if int(resp.status/100) != 2:
@@ -252,18 +316,26 @@ async def setNameChangeMessageId(credentials: WebsiteCredentials, current_name, 
 
 async def acceptNameChange(credentials: WebsiteCredentials, current_name: str):
     request_url = f"{credentials.url}/api/player/acceptNameChange?name={current_name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
-        async with session.post(request_url, headers=headers) as resp:
-            if int(resp.status/100) != 2:
-                resp_text = await resp.text()
-                error_msg = f"{resp.status} - {resp_text}"
-                return None, error_msg
-            body = await resp.json()
-            name_change = NameChangeRequest.from_api_response(body)
-            return name_change, None
+        error_msg = None
+        for _ in range(5):
+            async with session.post(request_url, headers=headers) as resp:
+                if int(resp.status/100) != 2:
+                    resp_text = await resp.text()
+                    error_msg = f"{resp.status} - {resp_text}"
+                    await asyncio.sleep(10)
+                    continue
+                body = await resp.json()
+                name_change = NameChangeRequest.from_api_response(body)
+                return name_change, None
+        return None, error_msg
 
 async def rejectNameChange(credentials: WebsiteCredentials, current_name: str):
     request_url = f"{credentials.url}/api/player/rejectNameChange?name={current_name}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url, headers=headers) as resp:
             if int(resp.status/100) != 2:

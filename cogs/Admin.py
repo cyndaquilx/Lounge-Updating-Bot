@@ -7,7 +7,7 @@ import API.post, API.get
 import asyncio
 
 from util import get_leaderboard, get_leaderboard_slash, fix_player_role
-from models import ServerConfig, LeaderboardConfig, PlayerPlacement, UpdatingBot
+from models import ServerConfig, LeaderboardConfig, PlayerPlacement, UpdatingBot, ListPlayer
 from custom_checks import leaderboard_autocomplete, app_command_check_admin_roles, command_check_admin_roles
 from io import StringIO, BytesIO
 import csv
@@ -91,7 +91,7 @@ class Admin(commands.Cog):
         await ctx.send("Working...")
         for i, member in enumerate(ctx.guild.members):
             player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
-            await fix_player_role(ctx, lb, player, member)
+            await fix_player_role(ctx.guild, lb, player, member)
             if (i+1) % 100 == 0:
                 await ctx.send(f"{i+1}/{member_count}")
         await ctx.send(f"{member_count}/{member_count} - done")
@@ -153,6 +153,27 @@ class Admin(commands.Cog):
     async def sync(self, ctx: commands.Context):
         await ctx.bot.tree.sync()
         await ctx.send("synced")
+
+    # @commands.command()
+    # @commands.is_owner()
+    async def table_fix(self, ctx: commands.Context[UpdatingBot]):
+        async with ctx.bot.db_wrapper.connect() as db:
+            await db.executescript("""CREATE TABLE IF NOT EXISTS verification_requests_new(
+                    id INTEGER PRIMARY KEY,
+                    guild_id INTEGER NOT NULL,
+                    leaderboard TEXT NOT NULL,
+                    mkc_id INTEGER NOT NULL,
+                    discord_id INTEGER NOT NULL,
+                    requested_name TEXT NOT NULL,
+                    approval_status TEXT NOT NULL,
+                    reason TEXT,
+                    country_code TEXT
+                );
+                INSERT INTO verification_requests_new(id, guild_id, leaderboard, mkc_id, discord_id, requested_name, approval_status, reason) SELECT id, guild_id, leaderboard, mkc_id, discord_id, requested_name, approval_status, reason FROM verification_requests;
+                DROP TABLE verification_requests;
+                ALTER TABLE verification_requests_new RENAME TO verification_requests;""")
+            await db.commit()
+        await ctx.send("done")
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))

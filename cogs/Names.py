@@ -2,16 +2,11 @@ import re
 import discord
 from discord import app_commands, User, Member
 from discord.ext import commands
+from custom_checks import (check_name_restricted_roles, check_valid_name, yes_no_check, 
+                           app_command_check_staff_roles, command_check_staff_roles,
+                           app_command_check_admin_roles, app_command_check_name_restricted_roles)
 from discord.utils import format_dt
-from custom_checks import (
-  check_name_restricted_roles,
-  check_valid_name,
-  yes_no_check,
-  app_command_check_staff_roles,
-  command_check_staff_roles,
-  app_command_check_admin_roles,
-  app_command_check_name_restricted_roles
-)
+
 import custom_checks
 from models import LeaderboardConfig, PlayerDetailed, UpdatingBot
 import API.get, API.post
@@ -36,6 +31,7 @@ class Names(commands.Cog):
 
     async def player_request_name(self, ctx: commands.Context, lb: LeaderboardConfig, name: str):
         assert ctx.guild is not None
+        assert isinstance(ctx.author, discord.Member)
         if check_name_restricted_roles(ctx, ctx.author):
             await ctx.send("You are nickname restricted and cannot use this command")
             return
@@ -43,7 +39,9 @@ class Names(commands.Cog):
             await ctx.send(f"You may only use this command in <#{lb.name_request_channel}>")
             return
         name = name.strip()
-        if not await check_valid_name(ctx, lb, name):
+        is_valid, error = check_valid_name(lb, name)
+        if not is_valid:
+            await ctx.send(str(error))
             return
         player = await API.get.getPlayerDetailsFromDiscord(lb.website_credentials, ctx.author.id)
         if player is None:
@@ -92,7 +90,7 @@ class Names(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.player_request_name(ctx, lb, name)
 
-    async def approve_name_change(self, ctx: commands.Context, lb: LeaderboardConfig, old_name: str):
+    async def approve_name_change(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, old_name: str):
         assert ctx.guild is not None
         name_request, error = await API.post.acceptNameChange(lb.website_credentials, old_name)
         if not name_request:
@@ -112,10 +110,13 @@ class Names(commands.Cog):
         name_request_log = ctx.guild.get_channel(lb.name_request_log_channel)
         if name_request_log and name_request.message_id:
             assert isinstance(name_request_log, discord.TextChannel)
-            react_msg = await name_request_log.fetch_message(name_request.message_id)
-            if react_msg is not None:
-                CHECK_BOX = "\U00002611"
-                await react_msg.add_reaction(CHECK_BOX)
+            try:
+                react_msg = await name_request_log.fetch_message(name_request.message_id)
+                if react_msg is not None:
+                    CHECK_BOX = "\U00002611"
+                    await react_msg.add_reaction(CHECK_BOX)
+            except:
+                pass
         if not name_request.discord_id:
             return
         try:
@@ -131,6 +132,18 @@ class Names(commands.Cog):
             await member.edit(nick=name_request.new_name)
         except Exception as e:
             pass
+
+        # change their name in other servers where the nickname is synced
+        server_config = ctx.bot.config.servers[ctx.guild.id]
+        for guild_id in server_config.name_synced_servers:
+            guild = ctx.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+            try:
+                guild_member = await guild.fetch_member(name_request.discord_id)
+                await guild_member.edit(nick=name_request.new_name)
+            except:
+                continue
 
     @name_group.command(name="approve")
     @app_commands.check(app_command_check_staff_roles)
@@ -254,9 +267,11 @@ class Names(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.reject_name_change(ctx, lb, old_name, reason)
 
-    async def update_player_name(self, ctx: commands.Context, lb: LeaderboardConfig, oldName: str, newName: str):
+    async def update_player_name(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, oldName: str, newName: str):
         assert ctx.guild is not None
-        if not await check_valid_name(ctx, lb, newName):
+        is_valid, error = check_valid_name(lb, newName)
+        if not is_valid:
+            await ctx.send(str(error))
             return
         player = await API.get.getPlayer(lb.website_credentials, oldName)
         if player is None:
@@ -305,10 +320,25 @@ class Names(commands.Cog):
         member = ctx.guild.get_member(int(player.discord_id))
         if member is None:
             await ctx.send(f"Couldn't find member {player.name}, please change their nickname manually")
-            return
-        await member.edit(nick=newName)
-        await ctx.send("Successfully changed their nickname in server")
+        else:
+            try:
+                await member.edit(nick=newName)
+                await ctx.send("Successfully changed their nickname in server")
+            except:
+                await ctx.send("Failed to change their nickname in server")
 
+        # change their name in other servers where the nickname is synced
+        server_config = ctx.bot.config.servers[ctx.guild.id]
+        for guild_id in server_config.name_synced_servers:
+            guild = ctx.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+            try:
+                guild_member = await guild.fetch_member(int(player.discord_id))
+                await guild_member.edit(nick=newName)
+            except:
+                continue
+        
     @commands.check(command_check_staff_roles)
     @commands.command(name="updateName", aliases=['un'])
     async def update_name_text(self, ctx, *, args):
@@ -520,7 +550,7 @@ class NameRequestModal(discord.ui.Modal, title="Name Change Request"):
 
         return (True, None)
 
-async def setup(bot):
+async def setup(bot: UpdatingBot):
     await bot.add_cog(Names(bot))
     bot.add_view(NameRequestButton(
         label="Request",

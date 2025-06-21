@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import dateutil.parser
 import urllib.parse
-from models.Players import PlayerBasic
+from models.Players import PlayerBasic, Player
 
 @dataclass
 class TableScore:
@@ -16,8 +16,7 @@ class TableScore:
     is_peak: bool = False
 
     @classmethod
-    def from_name_score(cls, name: str, gp_scores: list[int]):
-        player = PlayerBasic(0, name, None, None)
+    def from_player_score(cls, player: Player, gp_scores: list[int]):
         return cls(gp_scores, sum(gp_scores), 1.0, None, None, None, player)
     
     def set_score(self, gp_scores: list[int]):
@@ -107,18 +106,19 @@ class TableBasic:
                 table_text += f"{team.rank} {team_colors[i % len(team_colors)]}\n"
             for score in team.scores:
                 gp_string = '|'.join(str(gp) for gp in score.gp_scores)
-                table_text += f"{score.player.name} {gp_string}\n"
+                country = f"[{score.player.country_code}]" if score.player.country_code else ""
+                table_text += f"{score.player.name} {country} {gp_string}\n"
         url_table_text = urllib.parse.quote(table_text)
         image_url = base_url_lorenzi + url_table_text
         return image_url
     
     @classmethod
-    def from_text(cls, size: int, tier: str, names: list[str], gp_scores: list[list[int]], author_id: int, date: datetime | None):
+    def from_text(cls, size: int, tier: str, players: list[Player], gp_scores: list[list[int]], author_id: int, date: datetime | None):
         teams: list[TableTeam] = []
-        for i in range(0, len(names), size):
+        for i in range(0, len(players), size):
             team_scores = []
             for j in range(i, i+size):
-                team_scores.append(TableScore.from_name_score(names[j], gp_scores[j]))
+                team_scores.append(TableScore.from_player_score(players[j], gp_scores[j]))
             teams.append(TableTeam(0, team_scores))
         teams.sort(reverse=True)
         for i in range(len(teams)):

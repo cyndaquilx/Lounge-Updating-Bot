@@ -6,3 +6,4 @@
 /new_config.json
 /old_config.json
 *.xlsx
+*.db

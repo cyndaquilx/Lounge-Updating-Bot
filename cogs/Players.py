@@ -1,11 +1,11 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from models import LeaderboardConfig
+from models import LeaderboardConfig, UpdatingBot, PlayerAllGames
 import API.get, API.post
-from custom_checks import check_valid_name, yes_no_check, command_check_admin_mkc_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
+from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
-from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, give_placement_role, fix_player_role
+from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, give_placement_role, fix_player_role, add_player
 from typing import Optional, Union
 
 class Players(commands.Cog):
@@ -14,118 +14,49 @@ class Players(commands.Cog):
 
     player_group = app_commands.Group(name="player", description="Manage players", guild_only=True)
 
-    async def add_player(self, ctx: commands.Context, lb: LeaderboardConfig, mkcID: int, member: discord.Member | int, name: str, mmr: int | None):
-        assert ctx.guild is not None
-
-        # if 0 is passed in, set member_id to None (used in text commands if we don't want to add a discord for the player)
-        if isinstance(member, int):
-            if member == 0:
-                member_id = None
-            else:
-                found_member = ctx.guild.get_member(member)
-                if not found_member:
-                    await ctx.send(f"Member with ID {member} not found")
-                    return
-                member_id = found_member.id
-        else:
-            member_id = member.id
-        name = name.strip()
-        if not await check_valid_name(ctx, lb, name):
-            return
-        content = "Please confirm the player details within 30 seconds"
-        e = discord.Embed(title="New Player")
-        e.add_field(name="Name", value=name)
-        e.add_field(name="MKC ID", value=mkcID)
-        if mmr is not None:
-            e.add_field(name="Placement MMR", value=mmr)
-        if isinstance(member, discord.Member):
-            e.add_field(name="Discord", value=member.mention)
-        embedded = await ctx.send(content=content, embed=e)
-        if not await yes_no_check(ctx, embedded):
-            return
-
-        if mmr is not None:
-            player, error = await API.post.createPlayerWithMMR(lb.website_credentials, mkcID, mmr, name, member_id)
-        else:
-            player, error = await API.post.createNewPlayer(lb.website_credentials, mkcID, name, member_id)
-        if player is None:
-            await ctx.send(f"An error occurred while trying to add the player: {error}")
-            return
-        
-        roleGiven = ""
-        if isinstance(member, discord.Member):
-            roles = []
-            player_role = ctx.guild.get_role(lb.player_role_id)
-            if player_role:
-                roles.append(player_role)
-            if mmr is not None:
-                rank = lb.get_rank(mmr)
-                rank_role = ctx.guild.get_role(rank.role_id)
-                if rank_role:
-                    roles.append(rank_role)
-            else:
-                placement_role = ctx.guild.get_role(lb.placement_role_id)
-                if placement_role:
-                    roles.append(placement_role)
-            role_names = ", ".join([role.name for role in roles])
-            try:
-                await member.add_roles(*roles)
-                if member.display_name != name:
-                    await member.edit(nick=name)
-                roleGiven += f"\nAlso gave {member.mention} {role_names} role"
-            except Exception as e:
-                roleGiven += f"\nCould not give {role_names} roles to the player due to the following: {e}"
-                pass
-
-            if lb.enable_verification_dms:
-                quick_start_channel = ctx.guild.get_channel(lb.quick_start_channel)
-                if quick_start_channel:
-                    verification_msg = f"Your account has been successfully verified in {ctx.guild.name}! For information on how to join matches, " + \
-                        f"check the {quick_start_channel.mention} channel." + \
-                        f"\n{ctx.guild.name}への登録が完了しました！ 模擬への参加方法は{quick_start_channel.mention} をご覧下さい。"
-                    try:
-                        await member.send(verification_msg)
-                        roleGiven += f"\nSuccessfully sent verification DM to the player"
-                    except Exception as e:
-                        roleGiven += f"\nPlayer does not accept DMs from the bot, so verification DM was not sent"
-
-        await embedded.delete()
-        url = f"{lb.website_credentials.url}/PlayerDetails/{player.id}"
-        await ctx.send(f"Successfully added the new player: {url}{roleGiven}")
-        e = discord.Embed(title="Added new player")
-        e.add_field(name="Name", value=name)
-        e.add_field(name="MKC ID", value=mkcID)
-        if isinstance(member, discord.Member):
-            e.add_field(name="Discord", value=member.mention)
-        if mmr is not None:
-            e.add_field(name="MMR", value=mmr)
-        e.add_field(name="Added by", value=ctx.author.mention, inline=False)
-        updating_log = ctx.guild.get_channel(lb.updating_log_channel)
-        if updating_log is not None:
-            assert isinstance(updating_log, discord.TextChannel)
-            await updating_log.send(embed=e)
-
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addPlayer", aliases=["add"])
     @commands.guild_only()
     async def add_player_text(self, ctx, mkc_id:int, member:discord.Member | int, *, name):
         lb = get_leaderboard(ctx)
-        await self.add_player(ctx, lb, mkc_id, member, name, None)
+        await add_player(ctx, lb, mkc_id, member, name, None)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addAndPlace", aliases=['apl'])
     @commands.guild_only()
     async def add_and_place_text(self, ctx, mkcID:int, mmr:int, member:discord.Member | int, *, name):
         lb = get_leaderboard(ctx)
-        await self.add_player(ctx, lb, mkcID, member, name, mmr)
+        await add_player(ctx, lb, mkcID, member, name, mmr)
 
-    @app_commands.check(custom_checks.app_command_check_admin_mkc_roles)
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @player_group.command(name="add")
     async def add_player_slash(self, interaction: discord.Interaction, mkc_id:int, member:discord.Member, name: str, mmr: int | None, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.add_player(ctx, lb, mkc_id, member, name, mmr)
+        await add_player(ctx, lb, mkc_id, member, name, mmr)
+
+    async def register_player(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: PlayerAllGames):
+        assert ctx.guild is not None
+        registered_player, error = await API.post.registerPlayer(lb.website_credentials, player.name)
+        if not registered_player:
+            await ctx.send(f"An error occurred when registering the player: {error}")
+            return
+        await ctx.send(f"Successfully registered the player in this server")
+        if registered_player.discord_id:
+            await fix_player_role(ctx.guild, lb, registered_player, int(registered_player.discord_id))
+
+    @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @player_group.command(name="register")
+    async def register_player_slash(self, interaction: discord.Interaction, member:discord.Member, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        player = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, member.id)
+        if not player:
+            await ctx.send("Player with that Discord ID was not found")
+            return
+        await self.register_player(ctx, lb, player)
 
     async def hide_player(self, ctx, lb: LeaderboardConfig, name: str):
         success, text = await API.post.hidePlayer(lb.website_credentials, name)
@@ -152,6 +83,11 @@ class Players(commands.Cog):
     async def update_discord(self, ctx: commands.Context, lb: LeaderboardConfig, discord_id: int, name: str):
         assert isinstance(ctx.channel, Union[discord.TextChannel, discord.Thread])
         assert ctx.guild is not None
+
+        discord_player = await API.get.getPlayerFromDiscord(lb.website_credentials, discord_id)
+        if discord_player:
+            await ctx.send(f"Another player ({discord_player.name}) already uses this Discord ID.")
+            return
         
         player = await API.get.getPlayer(lb.website_credentials, name)
         if player is None:
@@ -192,11 +128,12 @@ class Players(commands.Cog):
         await self.update_discord(ctx, lb, member.id, name)
 
     async def fix_member_role(self, ctx: commands.Context, lb: LeaderboardConfig, member: discord.Member):
+        assert ctx.guild is not None
         player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
         if player is None:
             await ctx.send("Player could not be found on lounge site")
             return
-        await fix_player_role(ctx, lb, player, member)
+        await fix_player_role(ctx.guild, lb, player, member)
         await ctx.send("Fixed player's roles")
 
     @commands.command(name="fixRole")
@@ -345,29 +282,29 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await place_player_with_mmr(ctx, lb, mmr, name)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="forcePlace")
     @commands.guild_only()
     async def force_place_text(self, ctx, mmr:int, *, name):
         lb = get_leaderboard(ctx)
-        await place_player_with_mmr(ctx, lb, mmr, name, True)
+        await place_player_with_mmr(ctx, lb, mmr, name, force=True)
 
     @commands.command(name='mkcPlayer', aliases=['mkc'])
     @commands.guild_only()
-    async def mkc_search_text(self, ctx, mkcid:int):
+    async def mkc_search_text(self, ctx: commands.Context[UpdatingBot], mkcid:int):
         lb = get_leaderboard(ctx)
         player = await API.get.getPlayerFromMKC(lb.website_credentials, mkcid)
         if player is None:
             await ctx.send("The player couldn't be found!")
             return
         player_url = f"{lb.website_credentials.url}/PlayerDetails/{player.id}"
-        mkc_url = f"https://www.mariokartcentral.com/forums/index.php?members/{player.mkc_id}/"
+        mkc_url = f"https://mkcentral.com/registry/players/profile?id={player.mkc_id}"
         mkc_field = f"[{player.mkc_id}]({mkc_url})"
         e = discord.Embed(title="Player Data", url=player_url, description=player.name)
         e.add_field(name="MKC ID", value=mkc_field)
         await ctx.send(embed=e)
 
-    @commands.check(command_check_admin_mkc_roles)
+    @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addAllDiscords")
     @commands.guild_only()
     async def add_all_discords_text(self, ctx: commands.Context):

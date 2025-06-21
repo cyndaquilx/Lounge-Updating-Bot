@@ -5,6 +5,7 @@ import logging
 import asyncio
 from util import LeaderboardNotFoundException, GuildNotFoundException, get_config, Translator
 from models import UpdatingBot
+from database import DBWrapper
 
 config = get_config('./config.json')
 
@@ -17,12 +18,13 @@ intents.members = True
 intents.message_content = True
 intents.reactions = True
 client = discord.Client(intents=intents, application_id = config.application_id)
-bot = UpdatingBot(config, command_prefix=config.get_prefixes(), case_insensitive=True, intents=intents,
+db_wrapper = DBWrapper(config.db_directory, config.db_filename)
+bot = UpdatingBot(config, db_wrapper, command_prefix=config.get_prefixes(), case_insensitive=True, intents=intents,
                     tree = app_commands.CommandTree(client))
 print(bot.command_prefix)
 
 initial_extensions = ['cogs.Updating', 'cogs.Tables', 'cogs.Admin', 'cogs.Restrictions', 'cogs.Make_table', 'cogs.Players', 
-                      'cogs.Names', 'cogs.Penalties', 'cogs.Bonuses', 'cogs.Reactions', 'cogs.Request']
+                      'cogs.Names', 'cogs.Penalties', 'cogs.Bonuses', 'cogs.Reactions', 'cogs.Request', 'cogs.Verification']
 #initial_extensions = ['cogs.Admin',]
 
 @bot.event
@@ -86,6 +88,7 @@ async def on_app_command_error(interaction:discord.Interaction, error):
 
 async def main():
     async with bot:
+        await bot.db_wrapper.create_all_tables()
         await bot.tree.set_translator(Translator.CustomTranslator())
         for extension in initial_extensions:
             await bot.load_extension(extension)
