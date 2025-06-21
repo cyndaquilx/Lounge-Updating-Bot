@@ -265,7 +265,7 @@ class Verification(commands.Cog):
         e.add_field(name="Leaderboard", value=lb.name)
         e.add_field(name="Requested Name", value=verification.requested_name, inline=False)
         e.add_field(name="MKC ID", value=f"[{verification.mkc_id}]({interaction.client.config.mkc_credentials.url}/registry/players/profile?id={verification.mkc_id})")
-        e.add_field(name="Mention", value=interaction.user.mention)
+        e.add_field(name="Mention", value=f"<@{verification.discord_id}>")
         e.add_field(name="Handled by", value=ctx.author.mention, inline=False)
         e.add_field(name="Reason", value=reason, inline=False)
         await verification_log.send(embed=e)

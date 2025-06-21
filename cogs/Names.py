@@ -31,6 +31,7 @@ class Names(commands.Cog):
 
     async def player_request_name(self, ctx: commands.Context, lb: LeaderboardConfig, name: str):
         assert ctx.guild is not None
+        assert isinstance(ctx.author, discord.Member)
         if check_name_restricted_roles(ctx, ctx.author):
             await ctx.send("You are nickname restricted and cannot use this command")
             return
@@ -109,10 +110,13 @@ class Names(commands.Cog):
         name_request_log = ctx.guild.get_channel(lb.name_request_log_channel)
         if name_request_log and name_request.message_id:
             assert isinstance(name_request_log, discord.TextChannel)
-            react_msg = await name_request_log.fetch_message(name_request.message_id)
-            if react_msg is not None:
-                CHECK_BOX = "\U00002611"
-                await react_msg.add_reaction(CHECK_BOX)
+            try:
+                react_msg = await name_request_log.fetch_message(name_request.message_id)
+                if react_msg is not None:
+                    CHECK_BOX = "\U00002611"
+                    await react_msg.add_reaction(CHECK_BOX)
+            except:
+                pass
         if not name_request.discord_id:
             return
         try:
@@ -128,7 +132,7 @@ class Names(commands.Cog):
             await member.edit(nick=name_request.new_name)
         except Exception as e:
             pass
-        
+
         # change their name in other servers where the nickname is synced
         server_config = ctx.bot.config.servers[ctx.guild.id]
         for guild_id in server_config.name_synced_servers:
@@ -317,8 +321,11 @@ class Names(commands.Cog):
         if member is None:
             await ctx.send(f"Couldn't find member {player.name}, please change their nickname manually")
         else:
-            await member.edit(nick=newName)
-            await ctx.send("Successfully changed their nickname in server")
+            try:
+                await member.edit(nick=newName)
+                await ctx.send("Successfully changed their nickname in server")
+            except:
+                await ctx.send("Failed to change their nickname in server")
 
         # change their name in other servers where the nickname is synced
         server_config = ctx.bot.config.servers[ctx.guild.id]
