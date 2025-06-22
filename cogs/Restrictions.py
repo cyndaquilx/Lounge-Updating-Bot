@@ -58,6 +58,7 @@ class Restrictions(commands.Cog):
             return
         if message.guild is None:
             return
+        assert isinstance(message.author, discord.Member)
         if not isinstance(message.channel, Union[discord.TextChannel, discord.Thread]):
             return
         server_info: ServerConfig | None = self.bot.config.servers.get(message.guild.id, None)
