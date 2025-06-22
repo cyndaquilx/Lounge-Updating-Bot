@@ -30,7 +30,7 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
     e.add_field(name="Tier", value=sent_table.tier)
     e.add_field(name="Submitted by", value=ctx.author.mention)
     e.add_field(name="Submitted from", value=ctx.channel.jump_url)
-    e.add_field(name="View on website", value=(f"{lb.website_credentials.url}/TableDetails/{sent_table.id}"), inline=False)
+    e.add_field(name="View on website", value=(f"{lb.website_credentials.url}/{f'{lb.website_credentials.game}/' if lb.website_credentials.game else ""}TableDetails/{sent_table.id}"), inline=False)
     
     if total != expected_total:
         warning = f"The total score of {total} might be incorrect! Most tables should add up to {expected_total} points"
