@@ -31,7 +31,7 @@ class PenaltyInstance:
         return e
 
     async def send_request_to_channel(self, ctx, lb, embed, tier):
-        tier_channel = ctx.guild.get_channel(lb.tier_results_channels[tier])
+        tier_channel = get_pen_channel(ctx, lb, tier)
         embed_message = await tier_channel.send(embed=embed)
                 
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
@@ -105,7 +105,7 @@ class DropInstance(PenaltyInstance):
         interaction_copy = ctx.interaction
         prefix_copy = ctx.prefix
         
-        ctx.channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
+        ctx.channel = get_pen_channel(ctx, lb, table.tier)
         ctx.interaction = None #To remove the automatic reply to first message
         ctx.prefix = '!' #Hacky solution to avoid responding to original message
 
@@ -151,6 +151,13 @@ penalty_static_info = {
     "Host issues": (50, True),
     "No host": (50, True)
 }
+
+def get_pen_channel(ctx, lb, tier): #Return the pen channel or the given tier channel if it doesn't exist
+    pen_channel = ctx.guild.get_channel(lb.penalty_channel)
+    if pen_channel == None:
+        return ctx.guild.get_channel(lb.tier_results_channels[tier])
+    else:
+        return pen_channel
 
 class Requests(commands.Cog):
     def __init__ (self, bot: UpdatingBot):
@@ -199,7 +206,7 @@ class Requests(commands.Cog):
         embed = discord.Embed(title="Penalty request refused")
         embed.add_field(name="Request ID", value=request_data.id)
         assert ctx.guild is not None
-        tier_channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
+        tier_channel = get_pen_channel(ctx, lb, table.tier)
         assert tier_channel is not None
         await tier_channel.send(embed=embed)
 
@@ -216,7 +223,7 @@ class Requests(commands.Cog):
         if table is None or requests is None:
             return "An error occured while accessing the database"
 
-        penalty_instance = penalty_instance_builder(request_data.penalty_name, request_data.player_id, request_data.table_id)
+        penalty_instance = penalty_instance_builder(request_data.penalty_name, request_data.player_id, request_data.table_id, request_data.number_of_races)
         penalties_cog = self.bot.get_cog('Penalties')
         amount = penalty_static_info[request_data.penalty_name][0]
         is_strike = penalty_static_info[request_data.penalty_name][1]
@@ -236,7 +243,7 @@ class Requests(commands.Cog):
             embed.add_field(name="Penalty ID(s)", value=id_string, inline=False)
         
         assert ctx.guild is not None
-        tier_channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
+        tier_channel = get_pen_channel(ctx, lb, table.tier)
         assert tier_channel is not None
         await tier_channel.send(embed=embed)
 
