@@ -273,7 +273,7 @@ class Names(commands.Cog):
         if not is_valid:
             await ctx.send(str(error))
             return
-        player = await API.get.getPlayer(lb.website_credentials, oldName)
+        player = await API.get.getPlayerAllGames(lb.website_credentials, oldName)
         if player is None:
             await ctx.send("Player with old name can't be found")
             return
