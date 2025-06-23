@@ -1,5 +1,6 @@
 import aiohttp
 from models import Table, WebsiteCredentials, Player, PlayerDetailed, NameChangeRequest, ListPlayer, Penalty, PlayerAllGames
+from io import BytesIO
 
 headers = {'Content-type': 'application/json'}
 
@@ -190,3 +191,12 @@ async def getPendingNameChanges(credentials: WebsiteCredentials):
             body = await resp.json()
             changes = NameChangeRequest.list_from_api_response(body)
             return changes
+
+async def downloadTableImage(credentials: WebsiteCredentials, table_id: int):
+    request_url = f"{credentials.url}/TableImage/{table_id}.png"
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.get(request_url) as resp:
+            if resp.status != 200:
+                return None
+            else:
+                return BytesIO(await resp.read())

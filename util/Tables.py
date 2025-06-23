@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from models import TableBasic, Table, LeaderboardConfig
 from custom_checks import yes_no_check
-import API.post
+import API.post, API.get
 from typing import Union
 
 async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: TableBasic, bypass_confirmation = False) -> Table | None:
@@ -36,12 +36,20 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
         warning = f"The total score of {total} might be incorrect! Most tables should add up to {expected_total} points"
         e.add_field(name="Warning", value=warning, inline=False)
 
-    table_image_url = f"{lb.website_credentials.url}{sent_table.get_table_image_url()}"
-    e.set_image(url=table_image_url)
+    # table_image_url = f"{lb.website_credentials.url}{sent_table.get_table_image_url()}"
+    # e.set_image(url=table_image_url)
+
     channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
     if channel:
         assert isinstance(channel, discord.TextChannel)
-        tableMsg = await channel.send(embed=e)
+        table_image = await API.get.downloadTableImage(lb.website_credentials, sent_table.id)
+        if table_image is not None:
+            image_file = discord.File(table_image, filename=f"{sent_table.id}.png")
+            e.set_image(url=f"attachment://{sent_table.id}.png")
+            tableMsg = await channel.send(embed=e, file=image_file)
+        else:
+            image_file = None
+            tableMsg = await channel.send(embed=e)
     
     await API.post.setTableMessageId(lb.website_credentials, sent_table.id, tableMsg.id)
     if embedded is not None:
