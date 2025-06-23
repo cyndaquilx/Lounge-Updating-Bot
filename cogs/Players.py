@@ -80,11 +80,11 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.hide_player(ctx, lb, name)
 
-    async def update_discord(self, ctx: commands.Context, lb: LeaderboardConfig, discord_id: int, name: str):
+    async def update_discord(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, discord_id: int, name: str):
         assert isinstance(ctx.channel, Union[discord.TextChannel, discord.Thread])
         assert ctx.guild is not None
 
-        discord_player = await API.get.getPlayerFromDiscord(lb.website_credentials, discord_id)
+        discord_player = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, discord_id)
         if discord_player:
             await ctx.send(f"Another player ({discord_player.name}) already uses this Discord ID.")
             return
@@ -180,9 +180,9 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.unhide_player(ctx, lb, name)
 
-    async def refresh_player(self, ctx, lb: LeaderboardConfig, name):
+    async def refresh_player(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, name: str):
         if name.isdigit():
-            player = await API.get.getPlayerFromDiscord(lb.website_credentials, name)
+            player = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, int(name))
             if player is None:
                 await ctx.send("Player could not be found!")
                 return
@@ -208,7 +208,8 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.refresh_player(ctx, lb, name)
 
-    async def update_player_mkc(self, ctx, lb: LeaderboardConfig, new_mkc_id: int, name: str):
+    async def update_player_mkc(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, new_mkc_id: int, name: str):
+        assert ctx.guild is not None
         content = "Please confirm the MKC ID change within 30 seconds"
         e = discord.Embed(title="MKC ID Change")
         e.add_field(name="Name", value=name)
@@ -216,7 +217,7 @@ class Players(commands.Cog):
         embedded = await ctx.send(content=content, embed=e)
         if not await yes_no_check(ctx, embedded):
             return
-        player = await API.get.getPlayer(lb.website_credentials, name)
+        player = await API.get.getPlayerAllGames(lb.website_credentials, name)
         if player is None:
             await ctx.send("The player couldn't be found!")
             return
@@ -235,6 +236,7 @@ class Players(commands.Cog):
         e.add_field(name="Changed by", value=ctx.author.mention, inline=False)
         updating_log = ctx.guild.get_channel(lb.updating_log_channel)
         if updating_log is not None:
+            assert isinstance(updating_log, discord.TextChannel)
             await updating_log.send(embed=e)
 
     @commands.check(command_check_staff_roles)
@@ -293,7 +295,7 @@ class Players(commands.Cog):
     @commands.guild_only()
     async def mkc_search_text(self, ctx: commands.Context[UpdatingBot], mkcid:int):
         lb = get_leaderboard(ctx)
-        player = await API.get.getPlayerFromMKC(lb.website_credentials, mkcid)
+        player = await API.get.getPlayerAllGamesFromMKC(lb.website_credentials, mkcid)
         if player is None:
             await ctx.send("The player couldn't be found!")
             return
