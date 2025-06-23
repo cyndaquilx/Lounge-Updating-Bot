@@ -218,7 +218,7 @@ class Updating(commands.Cog):
             if races >= no_loss_races:
                 mult = 0
             else:
-                mult = 1 - (races/lb.races_per_mogi)
+                mult = 1 - (races - min_missed_races + 1)/6
             for team_player in team.scores:
                 if team_player.player.name.lower() != player.lower():
                     multipliers[team_player.player.name] = mult
