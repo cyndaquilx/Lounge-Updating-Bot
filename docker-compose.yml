@@ -4,7 +4,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - updating-db:/data
+      - updating-db:/app/data
       - ./allowed_phrases.json:/app/allowed_phrases.json:rw
 
 volumes:

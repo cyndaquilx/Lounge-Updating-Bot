@@ -5,7 +5,7 @@ import re
 
 import API.post, API.get
 
-from custom_checks import command_check_reporter_roles, check_staff_roles, leaderboard_autocomplete, check_displayable_name
+from custom_checks import command_check_reporter_roles, check_updater_roles, leaderboard_autocomplete, check_displayable_name
 from models import TableBasic, Player
 from util import submit_table, delete_table, get_leaderboard
 from datetime import datetime
@@ -26,7 +26,7 @@ class Tables(commands.Cog):
             await ctx.send("Table not found")
             return
         # players that aren't lounge staff can't delete other people's tables or already updated tables
-        if not check_staff_roles(ctx):
+        if not check_updater_roles(ctx):
             if table.verified_on:
                 await ctx.send("This table has been updated already, so you can't delete it. If there's an error with the table, please contact a staff member.")
                 return

@@ -25,6 +25,7 @@ class LeaderboardRank:
 class PlayerCountSettings:
     points_per_race: int
     valid_formats: list[int]
+    place_scores: dict[int, int]
 
 @dataclass
 class LeaderboardConfig:
@@ -47,9 +48,7 @@ class LeaderboardConfig:
     allow_numbered_names: bool
     ranks: list[LeaderboardRank]
     tier_results_channels: dict[str, int]
-    penalty_channel: int
-    place_rank_mmrs: dict[str, int]
-    place_scores: dict[int, int]
+    penalty_channel: int | None
 
     def get_rank(self, mmr:int):
         # get all the ranks where our MMR is higher than the minimum MMR
@@ -58,13 +57,14 @@ class LeaderboardConfig:
         rank = max(valid_ranks, key=lambda r: r.mmr)
         return rank
     
-    def get_place_mmr(self, score: int):
+    def get_place_mmr(self, score: int, player_count: int):
+        player_settings = self.player_settings[player_count]
         # get all the scores that we scored higher or equal to
-        valid_scores = [p for p in self.place_scores.keys() if p <= score]
+        valid_scores = [p for p in player_settings.place_scores.keys() if p <= score]
         # get the highest score of those scores
         highest_score = max(valid_scores)
         # find the placement MMR of that score
-        place_mmr = self.place_scores[highest_score]
+        place_mmr = player_settings.place_scores[highest_score]
         return place_mmr
 
 @dataclass

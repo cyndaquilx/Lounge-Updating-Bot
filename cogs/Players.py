@@ -254,21 +254,6 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_player_mkc(ctx, lb, new_mkc_id, name)
 
-    async def place_player_in_rank(self, ctx: commands.Context, lb: LeaderboardConfig, rank: str, name: str):
-        rank = rank.lower()
-        if rank not in lb.place_rank_mmrs:
-            await ctx.send("Please enter one of the following ranks: %s"
-                           % (", ".join(lb.place_rank_mmrs.keys())))
-            return False
-        placeMMR = lb.place_rank_mmrs[rank]
-        player, error = await API.post.placePlayer(lb.website_credentials, placeMMR, name)
-        if not player:
-            await ctx.send(f"An error occurred while trying to place the player: {error}")
-            return False
-        await give_placement_role(ctx, lb, player, placeMMR)
-        await ctx.send(f"Successfully placed {player.name} in {rank} with {placeMMR} MMR")
-        return True
-
     @commands.check(command_check_staff_roles)
     @commands.command(name="place", aliases=['placemmr'])
     @commands.guild_only()

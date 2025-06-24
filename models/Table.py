@@ -112,6 +112,9 @@ class TableBasic:
         image_url = base_url_lorenzi + url_table_text
         return image_url
     
+    def get_player_count(self):
+        return len(self.teams) * self.size
+    
     @classmethod
     def from_text(cls, size: int, tier: str, players: list[Player], gp_scores: list[list[int]], author_id: int, date: datetime | None):
         teams: list[TableTeam] = []
