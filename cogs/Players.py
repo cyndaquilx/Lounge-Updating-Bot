@@ -3,9 +3,9 @@ from discord import app_commands
 from discord.ext import commands
 from models import LeaderboardConfig, UpdatingBot, PlayerAllGames
 import API.get, API.post
-from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_staff_roles, check_staff_roles, find_member
+from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_updater_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
-from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, give_placement_role, fix_player_role, add_player
+from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, fix_player_role, add_player
 from typing import Optional, Union
 
 class Players(commands.Cog):
@@ -254,14 +254,14 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.update_player_mkc(ctx, lb, new_mkc_id, name)
 
-    @commands.check(command_check_staff_roles)
+    @commands.check(command_check_updater_roles)
     @commands.command(name="place", aliases=['placemmr'])
     @commands.guild_only()
     async def place_mmr_text(self, ctx, mmr:int, *, name):
         lb = get_leaderboard(ctx)
         await place_player_with_mmr(ctx, lb, mmr, name)
     
-    @app_commands.check(custom_checks.app_command_check_staff_roles)
+    @app_commands.check(custom_checks.app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @player_group.command(name="place")
     async def place_mmr_slash(self, interaction: discord.Interaction, mmr:app_commands.Range[int, 0], name:str, leaderboard: Optional[str]):
