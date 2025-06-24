@@ -1,6 +1,7 @@
 import aiohttp
+import urllib.parse
 import asyncio
-from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus, PlayerPlacement
+from models import TableBasic, Table, WebsiteCredentials, Player, NameChangeRequest, Penalty, Bonus, PlayerPlacement, PenaltyRequest
 from typing import Tuple
 
 headers = {'Content-type': 'application/json'}
@@ -345,3 +346,26 @@ async def rejectNameChange(credentials: WebsiteCredentials, current_name: str):
             body = await resp.json()
             name_change = NameChangeRequest.from_api_response(body)
             return name_change, None
+
+async def createPenaltyRequest(credentials: WebsiteCredentials, penalty_name: str, player_name: str, reporter_name: str, tab_id: int, number_of_races=0):
+    request_url = f"{credentials.url}/api/penaltyrequest/create?penaltyType={urllib.parse.quote(penalty_name)}&playerName={player_name}&reporterName={reporter_name}&tableID={tab_id}&numberOfRaces={number_of_races}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"    
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.post(request_url,headers=headers) as resp:
+            if resp.status != 201:
+                error = await resp.text()
+                return None, error
+            body = await resp.json()
+            request = PenaltyRequest.from_api_response(body)
+            return request, None
+
+async def deletePenaltyRequest(credentials: WebsiteCredentials, request_id: int):
+    request_url = f"{credentials.url}/api/penaltyrequest?id={request_id}"
+    if credentials.game:
+        request_url += f"&game={credentials.game}"
+    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
+        async with session.delete(request_url,headers=headers) as resp:
+            if resp.status == 200:
+                return None
+            return resp.status

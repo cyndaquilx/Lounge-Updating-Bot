@@ -54,7 +54,7 @@ class Penalties(commands.Cog):
         return strike_str
 
     async def pen_channel(self, ctx: commands.Context, lb: LeaderboardConfig, player: Player, tier: str, reason: str | None, table_id: int | None,
-                          amount: int, channel: discord.TextChannel, is_anonymous: bool, is_strike: bool, is_request=False):
+                          amount: int, channel: discord.TextChannel, is_anonymous: bool, is_strike: bool):
         assert ctx.guild is not None
         pen, error = await API.post.createPenalty(lb.website_credentials, player.name, abs(amount), is_strike)
         if pen is None:
@@ -110,21 +110,21 @@ class Penalties(commands.Cog):
             except discord.NotFound:
                 pass
         else:
-            if not is_request:
-                await ctx.send(f"Added -{abs(amount)} penalty to {pen.player_name} in {pen_msg.jump_url} (ID: {pen.id})")
+            await ctx.send(f"Added -{abs(amount)} penalty to {pen.player_name} in {pen_msg.jump_url} (ID: {pen.id})")
         return pen.id
 
     async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], 
-                          reason: str | None, table_id: int | None, is_anonymous=False, is_strike=False, is_request=False):
+                          reason: str | None, table_id: int | None, is_anonymous=False, is_strike=False):
         assert ctx.guild is not None
         tier = tier.upper()
-        if tier not in lb.tier_results_channels.keys() and not is_request:
+        if tier not in lb.tier_results_channels.keys():
             await ctx.send(f"Your tier is not valid! Valid tiers are: {list(lb.tier_results_channels.keys())}")
             return [None]
         if abs(amount) > 200:
             await ctx.send("Individual penalties can only be 200 points or lower")
             return [None]
-        channel = ctx.guild.get_channel(lb.tier_results_channels[tier]) if is_request == False else ctx.guild.get_channel(lb.penalty_channel)
+        pen_channel = ctx.guild.get_channel(lb.penalty_channel)
+        channel =  ctx.guild.get_channel(lb.tier_results_channels[tier]) if pen_channel == None else pen_channel
         players: list[Player] = []
         for name in names:
             if name.isdigit():
@@ -143,7 +143,7 @@ class Penalties(commands.Cog):
         if channel:
             assert isinstance(channel, discord.TextChannel)
             for player in players:
-                id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, is_strike, is_request=is_request))
+                id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, is_strike))
         return id_result
 
     async def parse_and_add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier, args: str, is_anonymous=False, is_strike=False):
