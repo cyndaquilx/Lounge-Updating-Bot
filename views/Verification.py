@@ -56,6 +56,9 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
             if discord_check.is_hidden:
                 await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.", ephemeral=True)
                 return
+            if mkc_player.id != discord_check.mkc_id:
+                await interaction.followup.send("Your Discord account is linked to a different MKC profile than what is linked to your Lounge profile. Please create a ticket.", ephemeral=True)
+                return
             if self.lb.website_credentials.game in discord_check.registrations:
                 player = await API.get.getPlayerFromLounge(self.lb.website_credentials, discord_check.id)
                 await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
@@ -193,6 +196,10 @@ class VerifyView(discord.ui.View):
         
         if discord_check.is_hidden:
             await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.", ephemeral=True)
+            return
+        
+        if discord_check.mkc_id != mkc_player.id:
+            await interaction.followup.send("Your Discord account is linked to a different MKC profile than what is linked to your Lounge profile. Please create a ticket.", ephemeral=True)
             return
         
         if lb.website_credentials.game in discord_check.registrations:
