@@ -28,6 +28,12 @@ class PlayerCountSettings:
     place_scores: dict[int, int]
 
 @dataclass
+class PenaltyTypes:
+    type: int
+    amount: int
+    is_strike: bool
+
+@dataclass
 class LeaderboardConfig:
     name: str
     website_credentials: WebsiteCredentials
@@ -41,6 +47,7 @@ class LeaderboardConfig:
     mute_ban_list_channel: int
     quick_start_channel: int
     player_settings: dict[int, PlayerCountSettings]
+    penalty_types: dict[str, PenaltyTypes]
     races_per_mogi: int
     gps_per_mogi: int
     enable_verification_dms: bool

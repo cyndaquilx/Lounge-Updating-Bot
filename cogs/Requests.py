@@ -55,7 +55,7 @@ class RepickInstance(PenaltyInstance):
 
     def create_embed(self, ctx, request_id, player_name, reason):
         partial_embed = PenaltyInstance.create_embed(self, ctx, request_id, player_name, reason)
-        partial_embed.add_field(name="Number of repick", value=self.total_repick)
+        partial_embed.add_field(name="Number of invalid races picked", value=self.total_repick)
         return partial_embed
 
     async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, is_strike):
@@ -91,7 +91,10 @@ class DropInstance(PenaltyInstance):
         no_ml_players = []
         max_number_of_races = 0
         for request in requests_list:
-            if request.table_id == self.table_id and isinstance(penalty_instance_builder(request.penalty_name, request.player_id, request.table_id, request.number_of_races), DropInstance):
+            penalty_type = lb.penalty_types.get(request.penalty_name)
+            if penalty_type is None :
+                return
+            if request.table_id == self.table_id and isinstance(penalty_instance_builder(request.penalty_name, penalty_type.type, request.player_id, request.table_id, request.number_of_races), DropInstance):
                 result = await self.same_team_players(lb, table, player_name, request.player_name)
                 if result == None:
                     return
@@ -132,25 +135,13 @@ class DropInstance(PenaltyInstance):
         ctx.interaction = interaction_copy
         ctx.prefix = prefix_copy
             
-def penalty_instance_builder(penalty_name, lounge_id, table_id, number_of_races = 0):
-    if penalty_name == "Repick":
-        return RepickInstance(penalty_name, lounge_id, table_id, number_of_races)
-    if penalty_name == "Drop mid mogi" or penalty_name == "3+ dcs" or penalty_name == "Drop before start":
+def penalty_instance_builder(penalty_name, type, lounge_id, table_id, number_of_races = 0):
+    if type == 1:
         return DropInstance(penalty_name, lounge_id, table_id, number_of_races)
-    return PenaltyInstance(penalty_name, lounge_id, table_id)
-
-penalty_static_info = {
-    "Late": (50, True),
-    "Drop mid mogi": (50, True),
-    "3+ dcs": (50, True),
-    "Drop before start": (100, True),
-    "Tag penalty": (50, True),
-    "FFA name violation": (50, True),
-    "Repick": (50, True),
-    "No video proof": (50, True),
-    "Host issues": (50, True),
-    "No host": (50, True)
-}
+    if type == 2:
+        return RepickInstance(penalty_name, lounge_id, table_id, number_of_races)
+    else:
+        return PenaltyInstance(penalty_name, lounge_id, table_id)
 
 def get_pen_channel(ctx, lb, tier): #Return the pen channel or the given tier channel if it doesn't exist
     pen_channel = ctx.guild.get_channel(lb.penalty_channel)
@@ -164,10 +155,21 @@ class Requests(commands.Cog):
         self.bot = bot
 
     async def penalty_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+        assert interaction.guild_id is not None
+        server_info: ServerConfig | None = interaction.client.config.servers.get(interaction.guild_id, None)
+        if not server_info:
+            return []
+        penalty_name_set = []
+        for lb in server_info.leaderboards.values():
+            for penalty_name in lb.penalty_types.keys():
+                penalty_name_set.append(penalty_name)
+
+        penalty_name_set = list(dict.fromkeys(penalty_name_set)) #Remvoe duplicates between leaderboard
+
         translator = CustomTranslator()
         user_locale = interaction.locale
         filtered = []
-        for penalty_name in penalty_static_info.keys():
+        for penalty_name in penalty_name_set:
             translation = await translator.translate(locale_str(penalty_name), user_locale, None)
             if translation == None:
                 filtered.append(penalty_name)
@@ -200,8 +202,10 @@ class Requests(commands.Cog):
         table = await API.get.getTable(lb.website_credentials, request_data.table_id)
         if table is None or requests is None:
             return "An error occured while accessing the database"
-
-        await penalty_instance_builder(request_data.penalty_name, request_data.player_id, request_data.table_id, request_data.number_of_races).apply_multiplier(lb, ctx, self.bot, table, request_data.player_name, requests)
+        
+        penalty_type = lb.penalty_types.get(request_data.penalty_name)
+        if penalty_type is not None: #In case of legacy names stored in DB, we still want to continue and acknowledge the removal
+            await penalty_instance_builder(request_data.penalty_name, penalty_type.type, request_data.player_id, request_data.table_id, request_data.number_of_races).apply_multiplier(lb, ctx, self.bot, table, request_data.player_name, requests)
 
         embed = discord.Embed(title="Penalty request refused")
         embed.add_field(name="Request ID", value=request_data.id)
@@ -223,12 +227,14 @@ class Requests(commands.Cog):
         if table is None or requests is None:
             return "An error occured while accessing the database"
 
-        penalty_instance = penalty_instance_builder(request_data.penalty_name, request_data.player_id, request_data.table_id, request_data.number_of_races)
+        penalty_type = lb.penalty_types.get(request_data.penalty_name)
+        if penalty_type is None :
+            return "Penalty name mismatch"
+
+        penalty_instance = penalty_instance_builder(request_data.penalty_name, penalty_type.type, request_data.player_id, request_data.table_id, request_data.number_of_races)
         penalties_cog = self.bot.get_cog('Penalties')
-        amount = penalty_static_info[request_data.penalty_name][0]
-        is_strike = penalty_static_info[request_data.penalty_name][1]
         
-        id_result = await penalty_instance.apply_penalty(lb, ctx, penalties_cog, table.tier, request_data.player_name, amount, is_strike)
+        id_result = await penalty_instance.apply_penalty(lb, ctx, penalties_cog, table.tier, request_data.player_name, penalty_type.amount, penalty_type.is_strike)
 
         embed = discord.Embed()
         embed.title = "Penalty request accepted" if None not in id_result else "Penalty request error"
@@ -274,9 +280,10 @@ class Requests(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        if penalty_type not in penalty_static_info.keys():
+        if lb.penalty_types.get(penalty_type) is None:
             found_name = False
-            for name in penalty_static_info.keys():
+            for type in lb.penalty_types.keys():
+                name = type
                 if name.lower() == penalty_type:
                     penalty_type = name
                     found_name = True
@@ -284,11 +291,16 @@ class Requests(commands.Cog):
             if not found_name:
                 #Quick check in case discord autocomplete failed at forcing a particular value from the penalty choice list
                 translation = CustomTranslator().translation_reverse_check(penalty_type)
-                if translation != None and translation in penalty_static_info.keys():
+                if translation is not None and lb.penalty_types.get(translation) is not None:
                     penalty_type = translation
                 else:
                     await ctx.send("This penalty type doesn't exist", ephemeral=True)
                     return
+        
+        type = lb.penalty_types.get(penalty_type)
+        if type is None :
+            await ctx.send("Penalty name mismatch", ephemeral=True)
+            return
         if table_id == None:
             await ctx.send("This penalty requires you to give a valid table id", ephemeral=True)
             return
@@ -316,7 +328,7 @@ class Requests(commands.Cog):
                     await ctx.send("You are not allowed to ask for a FFA name violation if you're not the table author or if you're not reporting the table author", ephemeral=True)
                     return
         if number_of_races == None:
-            if penalty_type == "Repick":
+            if type.type == 2:
                 number_of_races = 1
             else:
                 number_of_races = 0
@@ -327,9 +339,6 @@ class Requests(commands.Cog):
             return
         if penalty_type == "3+ dcs" and number_of_races < 3:
             await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"number_of_races\".", ephemeral=True)
-            return
-        if penalty_type == "Repick" and (number_of_races <= 0 or number_of_races > 11):
-            await ctx.send("You entered an invalid number of races", ephemeral=True)
             return
         
         reporter = await API.get.getPlayerFromDiscord(lb.website_credentials, ctx.author.id)
@@ -347,7 +356,7 @@ class Requests(commands.Cog):
             await ctx.send(f"An error occurred while accessing the database", ephemeral=True)
             return
 
-        penalty_instance = penalty_instance_builder(penalty_type, player.id, table_id, number_of_races)
+        penalty_instance = penalty_instance_builder(penalty_type, type.type, player.id, table_id, number_of_races)
 
         embed = penalty_instance.create_embed(ctx, request.id, player_name, reason)
         embed_message = await penalty_instance.send_request_to_channel(ctx, lb, embed, table.tier)
