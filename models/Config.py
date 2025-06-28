@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 
 @dataclass
 class WebsiteCredentials:
@@ -27,9 +28,14 @@ class PlayerCountSettings:
     valid_formats: list[int]
     place_scores: dict[int, int]
 
+class PenaltyType(str, Enum):
+    Basic = "Basic"
+    Drop = "Drop"
+    Repick = "Repick"
+
 @dataclass
-class PenaltyTypes:
-    type: int
+class PenaltyConfig:
+    type: PenaltyType
     amount: int
     is_strike: bool
 
@@ -47,7 +53,7 @@ class LeaderboardConfig:
     mute_ban_list_channel: int
     quick_start_channel: int
     player_settings: dict[int, PlayerCountSettings]
-    penalty_types: dict[str, PenaltyTypes]
+    penalty_types: dict[str, PenaltyConfig]
     races_per_mogi: int
     gps_per_mogi: int
     enable_verification_dms: bool

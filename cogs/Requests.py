@@ -136,9 +136,10 @@ class DropInstance(PenaltyInstance):
         ctx.prefix = prefix_copy
             
 def penalty_instance_builder(penalty_name, type, lounge_id, table_id, number_of_races = 0):
-    if type == 1:
+    #Check over all types from PenaltyType in Config.py
+    if type.value == "Drop":
         return DropInstance(penalty_name, lounge_id, table_id, number_of_races)
-    if type == 2:
+    if type.value == "Repick":
         return RepickInstance(penalty_name, lounge_id, table_id, number_of_races)
     else:
         return PenaltyInstance(penalty_name, lounge_id, table_id)
