@@ -329,7 +329,7 @@ class Requests(commands.Cog):
                     await ctx.send("You are not allowed to ask for a FFA name violation if you're not the table author or if you're not reporting the table author", ephemeral=True)
                     return
         if number_of_races == None:
-            if type.type == 2:
+            if type.type == "Repick":
                 number_of_races = 1
             else:
                 number_of_races = 0
