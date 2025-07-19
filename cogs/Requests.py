@@ -323,11 +323,6 @@ class Requests(commands.Cog):
             if not is_in_tab:
                 await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
                 return
-            #FFA name violation check on table author
-            if penalty_type == "FFA name violation":
-                if ctx.author.id != table.author_id and player.discord_id != table.author_id:
-                    await ctx.send("You are not allowed to ask for a FFA name violation if you're not the table author or if you're not reporting the table author", ephemeral=True)
-                    return
         if number_of_races == None:
             if type.type == "Repick":
                 number_of_races = 1
