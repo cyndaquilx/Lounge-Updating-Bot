@@ -17,6 +17,7 @@ class PenaltyInstance:
         self.penalty_name = penalty_name
         self.lounge_id=lounge_id
         self.table_id = table_id
+        self.error = ""
     
     def create_embed(self, ctx, request_id, player_name, reason):
         e = discord.Embed(title="Penalty request")
@@ -52,6 +53,8 @@ class RepickInstance(PenaltyInstance):
     def __init__(self, penalty_name, lounge_id, table_id, total_repick):
         super().__init__(penalty_name, lounge_id, table_id)
         self.total_repick = total_repick
+        if total_repick == None or total_repick < 1 or total_repick > 11:
+            self.error = "You need to enter a valid number of races in number_of_races for this penalty type (+1 for each time an invalid race has been played because of this player)"
 
     def create_embed(self, ctx, request_id, player_name, reason):
         partial_embed = PenaltyInstance.create_embed(self, ctx, request_id, player_name, reason)
@@ -68,11 +71,12 @@ class DropInstance(PenaltyInstance):
     def __init__(self, penalty_name, lounge_id, table_id, races_played_alone):
         super().__init__(penalty_name, lounge_id, table_id)
         self.races_played_alone = races_played_alone
+        if races_played_alone == None or races_played_alone < 0 or races_played_alone > 12:
+            self.error = "You need to enter a valid number of races in number_of_races for this penalty type. The number must only include races where the reported player has not been replaced by another player (Between 0 and 12)"
 
     def create_embed(self, ctx, request_id, player_name, reason):
         partial_embed = PenaltyInstance.create_embed(self, ctx, request_id, player_name, reason)
-        if self.races_played_alone != 0:
-            partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
+        partial_embed.add_field(name="Number of races with a missing teammate", value=self.races_played_alone)
         return partial_embed
 
     async def same_team_players(self, lb, table, player_name_new, player_name_old):
@@ -135,7 +139,7 @@ class DropInstance(PenaltyInstance):
         ctx.interaction = interaction_copy
         ctx.prefix = prefix_copy
             
-def penalty_instance_builder(penalty_name, type, lounge_id, table_id, number_of_races = 0):
+def penalty_instance_builder(penalty_name, type, lounge_id, table_id, number_of_races):
     #Check over all types from PenaltyType in Config.py
     if type.value == "Drop":
         return DropInstance(penalty_name, lounge_id, table_id, number_of_races)
@@ -323,25 +327,23 @@ class Requests(commands.Cog):
             if not is_in_tab:
                 await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
                 return
-        if number_of_races == None:
-            if type.type == "Repick":
-                number_of_races = 1
-            else:
-                number_of_races = 0
         if reason == None:
             reason = ""
-        if number_of_races < 0 or number_of_races > 12:
-            await ctx.send("You entered an invalid number of races", ephemeral=True)
-            return
-        if penalty_type == "3+ dcs" and number_of_races < 3:
+        if penalty_type == "3+ dcs" and (number_of_races == None or number_of_races < 3):
             await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"number_of_races\".", ephemeral=True)
             return
-        
         reporter = await API.get.getPlayerFromDiscord(lb.website_credentials, ctx.author.id)
         if reporter is None:
             await ctx.send("Your discord ID doesn't match any player in our database", ephemeral=True)
             return
 
+        penalty_instance = penalty_instance_builder(penalty_type, type.type, player.id, table_id, number_of_races)
+        if penalty_instance.error != "":
+            await ctx.send(penalty_instance.error, ephemeral=True)
+            return
+
+        if number_of_races == None:
+            number_of_races = 0
         request, error = await API.post.createPenaltyRequest(lb.website_credentials, penalty_type, player_name, reporter.name, table_id, number_of_races)
         if request is None:
             await ctx.send(f"An error occurred while creating the request: {error}", ephemeral=True)
@@ -351,8 +353,6 @@ class Requests(commands.Cog):
         if requests_list is None:
             await ctx.send(f"An error occurred while accessing the database", ephemeral=True)
             return
-
-        penalty_instance = penalty_instance_builder(penalty_type, type.type, player.id, table_id, number_of_races)
 
         embed = penalty_instance.create_embed(ctx, request.id, player_name, reason)
         embed_message = await penalty_instance.send_request_to_channel(ctx, lb, embed, table.tier)
