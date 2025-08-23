@@ -79,7 +79,7 @@ async def delete_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
                 else:
                     member = None
                 # don't want to mention people in ticket threads and add them to it
-                if member and not hasattr(ctx.channel, 'parent_id'):
+                if member and not isinstance(ctx.channel, discord.Thread):
                     player_name = member.mention
                 else:
                     player_name = score.player.name
