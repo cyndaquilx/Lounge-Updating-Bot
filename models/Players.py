@@ -181,6 +181,7 @@ class PlayerDetailed(Player):
     
 @dataclass
 class ListPlayer:
+    id: int
     name: str
     mkc_id: int | None
     mmr: int | None
@@ -189,12 +190,13 @@ class ListPlayer:
     
     @classmethod
     def from_api_response(cls, body: dict):
+        id = body['id']
         name = body.get('name')
         mkc_id = body.get('mkcId', None)
         mmr = body.get('mmr', None)
         discord_id = body.get('discordId', None)
         events_played = body.get('eventsPlayed', 0)
-        return cls(str(name), mkc_id, mmr, discord_id, int(events_played))
+        return cls(int(id), str(name), mkc_id, mmr, discord_id, int(events_played))
     
     @classmethod
     def from_list_api_response(cls, body: dict):

@@ -62,7 +62,7 @@ class Admin(commands.Cog):
         output = StringIO()
         writer = csv.writer(output)
         for player in players:
-            writer.writerow([player.name, player.mmr, player.events_played])
+            writer.writerow([player.id, player.name, player.mmr, player.events_played])
         output.seek(0)
         file_data = output.getvalue().encode('utf-8')
         f = discord.File(BytesIO(file_data), filename="players.csv")
