@@ -80,7 +80,7 @@ class Updating(commands.Cog):
         lb = get_leaderboard(ctx)
         await self.update_table(ctx, lb, tableid, extraArgs=extraArgs)
 
-    async def update_all_tables(self, ctx: commands.Context, lb: LeaderboardConfig, tier:Optional[str] = None, until_id: Optional[int] = None):
+    async def update_all_tables(self, ctx: commands.Context, lb: LeaderboardConfig, tier:Optional[str] = None, until_id: Optional[int] = None, after_id: Optional[int] = None):
         tables = await API.get.getPending(lb.website_credentials)
         if tables is None or not len(tables):
             await ctx.send("There are no pending tables")
@@ -89,6 +89,8 @@ class Updating(commands.Cog):
             if tier and table.tier != tier.upper():
                 continue
             if until_id and table.id > until_id:
+                continue
+            if after_id and table.id <= after_id:
                 continue
             try:
                 success = await self.update_table(ctx, lb, table.id)
@@ -129,6 +131,21 @@ class Updating(commands.Cog):
     async def updateTier(self, ctx, tier):
         lb = get_leaderboard(ctx)
         await self.update_all_tables(ctx, lb, tier=tier)
+
+    @app_commands.check(app_command_check_updater_roles)
+    @update_group.command(name="after")
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    async def update_after_slash(self, interaction: discord.Interaction, table_id: int, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        await self.update_all_tables(ctx, lb, after_id=table_id)
+
+    @commands.check(command_check_updater_roles)
+    @commands.command(aliases=['uafter'])
+    @commands.guild_only()
+    async def updateAfter(self, ctx, tableid:int):
+        lb = get_leaderboard(ctx)
+        await self.update_all_tables(ctx, lb, after_id=tableid)
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="until")
