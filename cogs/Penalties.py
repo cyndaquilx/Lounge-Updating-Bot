@@ -50,7 +50,7 @@ class Penalties(commands.Cog):
                 strike_str += "----------\n"
             date_formatted = discord.utils.format_dt(strike.awarded_on, style="d")
             date_relative = discord.utils.format_dt(strike.awarded_on, "R")
-            strike_str += f"{date_formatted} ({date_relative})\n"
+            strike_str += f"ID: {strike.id} {date_formatted} ({date_relative})\n"
         return strike_str
 
     async def pen_channel(self, ctx: commands.Context, lb: LeaderboardConfig, player: Player, tier: str, reason: str | None, table_id: int | None,
