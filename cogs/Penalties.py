@@ -170,7 +170,7 @@ class Penalties(commands.Cog):
     @penalty_group.command(name="strike")
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def strike_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 1, 200], tier:str, names: str, 
+    async def strike_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 0, 200], tier:str, names: str, 
                                 reason:str | None, leaderboard: Optional[str], anonymous: bool = False):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
