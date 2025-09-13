@@ -328,6 +328,9 @@ class Requests(commands.Cog):
                 await ctx.send("You need to be on the tab to ask for a penalty", ephemeral=True)
                 return
         if reason == None:
+            if penalty_type == "Host issues":
+                await ctx.send("You need to explain the situation in the \"reason\" field for us to review this penalty type")
+                return
             reason = ""
         if penalty_type == "3+ dcs" and (number_of_races == None or number_of_races < 3):
             await ctx.send("Please enter the exact number of races mate(s) of the reported player played alone in \"number_of_races\".", ephemeral=True)
