@@ -58,7 +58,7 @@ class RepickInstance(PenaltyInstance):
 
     def create_embed(self, ctx, request_id, player_name, reason):
         partial_embed = PenaltyInstance.create_embed(self, ctx, request_id, player_name, reason)
-        partial_embed.add_field(name="Number of invalid races picked", value=self.total_repick)
+        partial_embed.add_field(name="Number of invalid races picked and played", value=self.total_repick)
         return partial_embed
 
     async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, is_strike):
