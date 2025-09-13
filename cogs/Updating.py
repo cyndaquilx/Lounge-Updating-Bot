@@ -9,6 +9,7 @@ from custom_checks import check_updater_roles, command_check_reporter_roles, com
 import custom_checks
 
 from typing import Optional
+from datetime import datetime, timedelta
 from util import submit_table, delete_table, get_leaderboard, get_leaderboard_slash, set_multipliers, update_roles, parse_scores, check_placements
 from models import ServerConfig, LeaderboardConfig, UpdatingBot, Player
 
@@ -254,6 +255,9 @@ class Updating(commands.Cog):
         table = await API.get.getTable(lb.website_credentials, table_id)
         if table is None:
             await ctx.send(f"Table with ID {table_id} couldn't be found")
+            return
+        if datetime.fromtimestamp(table.created_on.timestamp()) + timedelta(minutes=5) > datetime.now():
+            await ctx.send(f"Table with ID {table_id} cannot be updated in less than 5 minutes after creation")
             return
         if table.deleted_on:
             await ctx.send(f"Table ID {table_id} is deleted and cannot be updated")
