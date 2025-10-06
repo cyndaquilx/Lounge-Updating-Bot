@@ -86,6 +86,8 @@ class Tables(commands.Cog):
         names: list[str] = []
         scores: list[list[int]] = []
         for line in lines:
+            # remove escape character
+            line = line.replace("\\", "")
             # removes country flag brackets
             newline = re.sub(r"[\[].*?[\]]", "", line).split()
             names.append(" ".join(newline[0:len(newline)-1]))
