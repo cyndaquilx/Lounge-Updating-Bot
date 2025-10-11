@@ -231,6 +231,9 @@ class Requests(commands.Cog):
         table = await API.get.getTable(lb.website_credentials, request_data.table_id)
         if table is None or requests is None:
             return "An error occured while accessing the database"
+        
+        if not table.verified_on and not table.deleted_on:
+            return f"Table {table.id} needs to be handled before Request {request_data.id}"
 
         penalty_type = lb.penalty_types.get(request_data.penalty_name)
         if penalty_type is None :
