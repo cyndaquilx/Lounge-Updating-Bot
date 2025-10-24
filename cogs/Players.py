@@ -327,8 +327,9 @@ class Players(commands.Cog):
         if player is None:
             await ctx.send(f"The following player could not be found: {name}")
             return
-        e = discord.Embed(title=f"[Player Data]({lb.website_credentials.url}/{lb.website_credentials.game}/PlayerDetails/{player.id})",
-                          description=f"{country_code_to_emoji(player.country_code) if player.country_code else ''} {player.name}")
+        e = discord.Embed(title=f"Player Data",
+                          description=f"{country_code_to_emoji(player.country_code) if player.country_code else ''} {player.name}",
+                          url=f"{lb.website_credentials.url}/{lb.website_credentials.game}/PlayerDetails/{player.id}")
         e.add_field(name="MKC ID", value=f"[{player.mkc_id}](https://mkcentral.com/registry/players/profile?id={player.mkc_id})", inline=False)
         if player.discord_id:
             e.add_field(name="Discord", value=f"<@{player.discord_id}> ({player.discord_id})", inline=False)
