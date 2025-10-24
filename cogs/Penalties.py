@@ -123,7 +123,7 @@ class Penalties(commands.Cog):
         if abs(amount) > 200:
             await ctx.send("Individual penalties can only be 200 points or lower")
             return [None]
-        pen_channel = ctx.guild.get_channel(lb.penalty_channel)
+        pen_channel = ctx.guild.get_channel(lb.penalty_channel) if lb.penalty_channel else None
         channel =  ctx.guild.get_channel(lb.tier_results_channels[tier]) if pen_channel == None else pen_channel
         players: list[Player] = []
         for name in names:

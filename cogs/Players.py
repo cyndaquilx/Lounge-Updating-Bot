@@ -5,8 +5,9 @@ from models import LeaderboardConfig, UpdatingBot, PlayerAllGames
 import API.get, API.post
 from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_updater_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
-from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, fix_player_role, add_player
+from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, fix_player_role, add_player, country_code_to_emoji
 from typing import Optional, Union
+import re
 
 class Players(commands.Cog):
     def __init__(self, bot):
@@ -314,6 +315,43 @@ class Players(commands.Cog):
             success, _ = await API.post.updateDiscord(lb.website_credentials, player.name, member.id)
             if success is True:
                 print(f"Added discord id for {player.name}: {member.id}")
+
+    async def player_data(self, ctx: commands.Context[UpdatingBot], name: str, lb: LeaderboardConfig):
+        name = name.strip()
+        if name.isdigit():
+            player = await API.get.getPlayerFromDiscord(lb.website_credentials, int(name))
+        elif re.match(r'^\d{4}-\d{4}-\d{4}$', name):
+            player = await API.get.getPlayerFromFC(lb.website_credentials, name)
+        else:
+            player = await API.get.getPlayer(lb.website_credentials, name)
+        if player is None:
+            await ctx.send(f"The following player could not be found: {name}")
+            return
+        e = discord.Embed(title=f"[Player Data]({lb.website_credentials.url}/{lb.website_credentials.game}/PlayerDetails/{player.id})",
+                          description=f"{country_code_to_emoji(player.country_code) if player.country_code else ''} {player.name}")
+        e.add_field(name="MKC ID", value=f"[{player.mkc_id}](https://mkcentral.com/registry/players/profile?id={player.mkc_id})", inline=False)
+        if player.discord_id:
+            e.add_field(name="Discord", value=f"<@{player.discord_id}> ({player.discord_id})", inline=False)
+        e.add_field(name="Friend Code", value=player.fc, inline=False)
+        e.add_field(name="MMR", value=player.mmr, inline=False)
+        e.add_field(name="Peak MMR", value=player.peak_mmr, inline=False)
+        e.add_field(name="Hidden", value=player.is_hidden, inline=False)
+        await ctx.send(embed=e)
+
+    @commands.check(command_check_updater_roles)
+    @commands.command(name="data")
+    @commands.guild_only()
+    async def player_data_text(self, ctx, *, name: str):
+        lb = get_leaderboard(ctx)
+        await self.player_data(ctx, name, lb)
+    
+    @app_commands.check(custom_checks.app_command_check_updater_roles)
+    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
+    @player_group.command(name="player_data")
+    async def player_data_slash(self, interaction: discord.Interaction, name:str, leaderboard: Optional[str]):
+        ctx = await commands.Context.from_interaction(interaction)
+        lb = get_leaderboard_slash(ctx, leaderboard)
+        await self.player_data(ctx, name, lb)
 
 async def setup(bot):
     await bot.add_cog(Players(bot))

@@ -99,9 +99,9 @@ class Updating(commands.Cog):
                     return
             except Exception as e:
                 traceback.print_exc()
-        up_to = f"up to ID {until_id}" if until_id else ""
+        up_to = f"up to ID {until_id} " if until_id else ""
         in_tier = f"in Tier {tier.upper()}" if tier else ""
-        await ctx.send(f"Updated all tables {up_to} {in_tier}")
+        await ctx.send(f"Updated all tables {up_to}{in_tier}")
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="all")

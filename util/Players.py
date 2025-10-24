@@ -254,3 +254,11 @@ async def fix_player_role(guild: discord.Guild, lb: LeaderboardConfig, player: P
             await member.edit(nick=player.name)
         except:
             pass
+
+def country_code_to_emoji(country_code: str) -> str:
+    country_code = country_code.upper()
+
+    emoji = ""
+    for char in country_code.split(''):
+        emoji += chr(0x1F1E6 + (ord(char) - ord('A')))
+    return emoji
