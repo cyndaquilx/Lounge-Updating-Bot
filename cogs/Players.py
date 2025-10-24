@@ -345,7 +345,7 @@ class Players(commands.Cog):
     @commands.check(command_check_updater_roles)
     @commands.command(name="data")
     @commands.guild_only()
-    async def player_data_text(self, ctx, *, name: str):
+    async def player_data_text(self, ctx, *, name: str = ''):
         lb = get_leaderboard(ctx)
         await self.player_data(ctx, name, lb)
     
