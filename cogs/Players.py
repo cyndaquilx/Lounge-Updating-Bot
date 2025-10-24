@@ -317,7 +317,10 @@ class Players(commands.Cog):
                 print(f"Added discord id for {player.name}: {member.id}")
 
     async def player_data(self, ctx: commands.Context[UpdatingBot], name: str, lb: LeaderboardConfig):
+        await ctx.defer()
         name = name.strip()
+        if len(name) == 0:
+            name = str(ctx.author.id)
         if name.isdigit():
             player = await API.get.getPlayerFromDiscord(lb.website_credentials, int(name))
         elif re.match(r'^\d{4}-\d{4}-\d{4}$', name):
