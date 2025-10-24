@@ -259,6 +259,6 @@ def country_code_to_emoji(country_code: str) -> str:
     country_code = country_code.upper()
 
     emoji = ""
-    for char in country_code.split(''):
+    for char in list(country_code):
         emoji += chr(0x1F1E6 + (ord(char) - ord('A')))
     return emoji

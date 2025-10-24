@@ -347,7 +347,7 @@ class Players(commands.Cog):
     
     @app_commands.check(custom_checks.app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    @player_group.command(name="player_data")
+    @player_group.command(name="data")
     async def player_data_slash(self, interaction: discord.Interaction, name:str, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
