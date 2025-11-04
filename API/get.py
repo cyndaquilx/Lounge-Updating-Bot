@@ -1,5 +1,5 @@
 import aiohttp
-from models import Table, WebsiteCredentials, Player, PlayerDetailed, NameChangeRequest, ListPlayer, Penalty, PlayerAllGames, PenaltyRequest
+from models import Table, WebsiteCredentials, Player, PlayerDetailed, NameChangeRequest, ListPlayer, Penalty, PlayerAllGames, PenaltyRequest, PlayerBasic
 from io import BytesIO
 
 headers = {'Content-type': 'application/json'}
@@ -33,7 +33,7 @@ async def getPlayers(credentials: WebsiteCredentials, names: list[str]):
                 players.append(player)
         return players
         
-async def getPlayer(credentials: WebsiteCredentials, name: str):
+async def getPlayer(credentials: WebsiteCredentials, name: str) -> Player | None:
     request_url = f"{credentials.url}/api/player?name={name}"
     if credentials.game:
         request_url += f"&game={credentials.game}"
@@ -93,8 +93,10 @@ async def getPlayerFromDiscord(credentials: WebsiteCredentials, discord_id: int)
             player = Player.from_api_response(body)
             return player
 
-async def getPlayerAllGames(credentials: WebsiteCredentials, name: str):
-    request_url = f"{credentials.url}/api/player{'/allgames' if credentials.has_all_games_endpoint else ''}?name={name}"
+async def getPlayerAllGames(credentials: WebsiteCredentials, name: str) -> Player | PlayerAllGames | None:
+    if not credentials.has_all_games_endpoint:
+        return await getPlayer(credentials, name)
+    request_url = f"{credentials.url}/api/player/allgames?name={name}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -103,8 +105,10 @@ async def getPlayerAllGames(credentials: WebsiteCredentials, name: str):
             player = PlayerAllGames.from_api_response(body)
             return player
         
-async def getPlayerAllGamesFromMKC(credentials: WebsiteCredentials, mkc_id: int):
-    request_url = f"{credentials.url}/api/player{'/allgames' if credentials.has_all_games_endpoint else ''}?mkcId={mkc_id}"
+async def getPlayerAllGamesFromMKC(credentials: WebsiteCredentials, mkc_id: int) -> Player | PlayerAllGames | None:
+    if not credentials.has_all_games_endpoint:
+        return await getPlayerFromMKC(credentials, mkc_id)
+    request_url = f"{credentials.url}/api/player/allgames?mkcId={mkc_id}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -113,8 +117,10 @@ async def getPlayerAllGamesFromMKC(credentials: WebsiteCredentials, mkc_id: int)
             player = PlayerAllGames.from_api_response(body)
             return player
         
-async def getPlayerAllGamesFromLounge(credentials: WebsiteCredentials, lounge_id: int):
-    request_url = f"{credentials.url}/api/player{'/allgames' if credentials.has_all_games_endpoint else ''}?id={lounge_id}"
+async def getPlayerAllGamesFromLounge(credentials: WebsiteCredentials, lounge_id: int) -> Player | PlayerAllGames | None:
+    if not credentials.has_all_games_endpoint:
+        return await getPlayerFromLounge(credentials, lounge_id)
+    request_url = f"{credentials.url}/api/player/allgames?id={lounge_id}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
@@ -123,8 +129,10 @@ async def getPlayerAllGamesFromLounge(credentials: WebsiteCredentials, lounge_id
             player = PlayerAllGames.from_api_response(body)
             return player
         
-async def getPlayerAllGamesFromDiscord(credentials: WebsiteCredentials, discord_id: int):
-    request_url = f"{credentials.url}/api/player{'/allgames' if credentials.has_all_games_endpoint else ''}?discordId={discord_id}"
+async def getPlayerAllGamesFromDiscord(credentials: WebsiteCredentials, discord_id: int) -> Player | PlayerAllGames | None:
+    if not credentials.has_all_games_endpoint:
+        return await getPlayerFromDiscord(credentials, discord_id)
+    request_url = f"{credentials.url}/api/player/allgames?discordId={discord_id}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:

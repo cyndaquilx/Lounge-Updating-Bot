@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from models import LeaderboardConfig, UpdatingBot, PlayerAllGames
+from models import LeaderboardConfig, UpdatingBot, PlayerBasic
 import API.get, API.post
 from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_updater_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
@@ -37,7 +37,7 @@ class Players(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await add_player(ctx, lb, mkc_id, member, name, mmr)
 
-    async def register_player(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: PlayerAllGames):
+    async def register_player(self, ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, player: PlayerBasic):
         assert ctx.guild is not None
         registered_player, error = await API.post.registerPlayer(lb.website_credentials, player.name)
         if not registered_player:
