@@ -7,6 +7,7 @@ class WebsiteCredentials:
     username: str
     password: str
     game: str | None
+    has_all_games_endpoint: bool = True
 
 @dataclass
 class MKCentralCredentials:
