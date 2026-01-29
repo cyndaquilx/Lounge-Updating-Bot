@@ -1,10 +1,10 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from models import UpdatingBot, LeaderboardConfig, VerificationRequest
+from models import UpdatingBot, LeaderboardConfig, VerificationRequest, PlayerAllGames
 import custom_checks
 from typing import Optional
-from util import get_leaderboard_slash, get_verifications, add_player, update_verification_approvals, get_verification_by_id, get_user_latest_verification, fix_player_role
+from util import get_leaderboard_slash, get_verifications, add_player, update_verification_approvals, get_verification_by_id, get_user_latest_verification, fix_player_role, get_server_config
 from views import VerifyView
 import API.get, API.post
 
@@ -85,6 +85,8 @@ class Verification(commands.Cog):
             # check if player has already been verified for another game in the meantime,
             # then register them / fix their role
             all_games_check = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, verification.discord_id)
+            assert isinstance(all_games_check, PlayerAllGames)
+            server_config = get_server_config(ctx)
             if all_games_check:
                 if lb.website_credentials.game not in all_games_check.registrations:
                     player, error = await API.post.registerPlayer(lb.website_credentials, all_games_check.name)
@@ -92,12 +94,12 @@ class Verification(commands.Cog):
                         await ctx.send(f"Failed to register player {all_games_check.name} for verification ID {verification.id} - {error}")
                         continue
                     await ctx.send(f"Successfully approved verification ID {verification.id}")
-                    await fix_player_role(ctx.guild, lb, player, verification.discord_id)
+                    await fix_player_role(ctx.guild, server_config, verification.discord_id)
                 else:
                     await ctx.send(f"Player {all_games_check.name} is already verified - skipping verification ID {verification.id}")
                     player = await API.get.getPlayerFromLounge(lb.website_credentials, all_games_check.id)
                     if player:
-                        await fix_player_role(ctx.guild, lb, player, verification.discord_id)
+                        await fix_player_role(ctx.guild, server_config, verification.discord_id)
                 successes.append(verification.id)
                 continue
 

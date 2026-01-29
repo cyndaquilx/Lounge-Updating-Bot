@@ -6,7 +6,7 @@ from typing import Optional
 import API.post, API.get
 import asyncio
 
-from util import get_leaderboard, get_leaderboard_slash, fix_player_role
+from util import get_leaderboard, get_leaderboard_slash, fix_player_role, get_server_config
 from models import ServerConfig, LeaderboardConfig, PlayerPlacement, UpdatingBot, ListPlayer
 from custom_checks import leaderboard_autocomplete, app_command_check_admin_roles, command_check_admin_roles
 from io import StringIO, BytesIO
@@ -84,14 +84,13 @@ class Admin(commands.Cog):
         await self.get_player_list(ctx, lb)
 
     # use this after all players have been placed on the website for new season
-    async def fix_all_player_roles(self, ctx: commands.Context, lb: LeaderboardConfig):
+    async def fix_all_player_roles(self, ctx: commands.Context):
         if not ctx.guild: 
             return
         member_count = len(ctx.guild.members)
-        await ctx.send("Working...")
+        server_config = get_server_config(ctx)
         for i, member in enumerate(ctx.guild.members):
-            player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
-            await fix_player_role(ctx.guild, lb, player, member)
+            await fix_player_role(ctx.guild, server_config, member)
             if (i+1) % 100 == 0:
                 await ctx.send(f"{i+1}/{member_count}")
         await ctx.send(f"{member_count}/{member_count} - done")
@@ -100,7 +99,7 @@ class Admin(commands.Cog):
     @commands.command(name="fixAllRoles")
     async def fix_all_roles_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
-        await self.fix_all_player_roles(ctx, lb)
+        await self.fix_all_player_roles(ctx)
 
     @app_commands.autocomplete(leaderboard=leaderboard_autocomplete)
     @app_commands.check(app_command_check_admin_roles)
@@ -109,7 +108,7 @@ class Admin(commands.Cog):
     async def fix_all_roles_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.fix_all_player_roles(ctx, lb)
+        await self.fix_all_player_roles(ctx)
 
     async def unlockdown(self, channel:discord.TextChannel):
         overwrite = channel.overwrites_for(channel.guild.default_role)

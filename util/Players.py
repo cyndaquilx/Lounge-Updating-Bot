@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
-from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot, ListPlayer
+from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot, ListPlayer, ServerConfig
 from custom_checks import check_valid_name, yes_no_check
-import API.post
+import API.get, API.post
 
 async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, mkcID: int, member: discord.Member | int, name: str, mmr: int | None, confirm=True, check_exists=True) -> bool:
     assert ctx.guild is not None
@@ -180,67 +180,67 @@ async def update_roles(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig
                 await member.add_roles(new_role)
     return rank_changes
 
-async def fix_player_role(guild: discord.Guild, lb: LeaderboardConfig, player: Player | ListPlayer | None, member: discord.Member | int):
-    player_roles: list[discord.Role] = []
-    placement_role = guild.get_role(lb.placement_role_id)
-    player_role = guild.get_role(lb.player_role_id)
-    assert placement_role is not None
-    assert player_role is not None
-
+async def fix_player_role(guild: discord.Guild, server_config: ServerConfig, member: discord.Member | int):
+    to_add: list[discord.Role] = []
+    to_remove: list[discord.Role] = []
     if isinstance(member, int):
         found_member = guild.get_member(member)
         if found_member is None:
             return
         member = found_member
 
-    # get all the player's rank/player roles
-    for role in member.roles:
-        for rank in lb.ranks:
-            if role.id == rank.role_id:
+    for lb in server_config.leaderboards.values():
+        player_roles: list[discord.Role] = []
+        placement_role = guild.get_role(lb.placement_role_id)
+        player_role = guild.get_role(lb.player_role_id)
+        assert placement_role is not None
+        assert player_role is not None
+
+        # get all the player's rank/player roles
+        for role in member.roles:
+            for rank in lb.ranks:
+                if role.id == rank.role_id:
+                    player_roles.append(role)
+            if role.id == placement_role.id:
                 player_roles.append(role)
-        if role.id == placement_role.id:
-            player_roles.append(role)
-        if role.id == player_role.id:
-            player_roles.append(role)
+            if role.id == player_role.id:
+                player_roles.append(role)
 
-    # if the player doesn't exist, just remove all of these roles
-    if player is None:
-        try:
-            await member.remove_roles(*player_roles)
-        except Exception as e:
-            print(e)
-        return
-    
-    # if player hasn't been placed yet their current rank role
-    # is placement role, otherwise just get their rank role
-    if player.mmr is None:
-        rank_role = placement_role
-    else:
-        rank = lb.get_rank(player.mmr)
-        rank_role = guild.get_role(rank.role_id)
-        assert rank_role is not None
-    
-    # if we have a rank role that we shouldn't, remove it
-    to_remove: list[discord.Role] = []
-    for role in player_roles:
-        if role.id == player_role.id:
+        player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
+        # if the player doesn't exist, just remove all of these roles
+        if player is None:
+            to_remove.extend(player_roles)
             continue
-        if role.id != rank_role.id:
-            to_remove.append(role)
-            
-    if len(to_remove) > 0:
-        try:
-            await member.remove_roles(*to_remove)
-        except Exception as e:
-            print(e)
+        
+        # if player hasn't been placed yet their current rank role
+        # is placement role, otherwise just get their rank role
+        if player.mmr is None:
+            rank_role = placement_role
+        else:
+            rank = lb.get_rank(player.mmr)
+            rank_role = guild.get_role(rank.role_id)
+            assert rank_role is not None
+        
+        # if we have a rank role that we shouldn't, remove it
+        for role in player_roles:
+            if role.id == player_role.id:
+                continue
+            if role.id != rank_role.id:
+                to_remove.append(role)
 
-    # if we don't have the player role or the role
-    # of our current rank, add them
-    to_add: list[discord.Role] = []
-    if rank_role not in player_roles:
-        to_add.append(rank_role)
-    if player_role not in player_roles:
-        to_add.append(player_role)
+        # if we don't have the player role or the role
+        # of our current rank, add them
+        if rank_role not in player_roles:
+            to_add.append(rank_role)
+        if player_role not in player_roles:
+            to_add.append(player_role)
+
+        # fix nickname, if applicable (will fail on admins so use try/except)
+        if member.display_name != player.name:
+            try:
+                await member.edit(nick=player.name)
+            except:
+                pass
     
     if len(to_add) > 0:
         try:
@@ -248,12 +248,11 @@ async def fix_player_role(guild: discord.Guild, lb: LeaderboardConfig, player: P
         except Exception as e:
             print(e)
 
-    # fix nickname, if applicable (will fail on admins so use try/except)
-    if member.display_name != player.name:
+    if len(to_remove) > 0:
         try:
-            await member.edit(nick=player.name)
-        except:
-            pass
+            await member.remove_roles(*to_remove)
+        except Exception as e:
+            print(e)
 
 def country_code_to_emoji(country_code: str) -> str:
     country_code = country_code.upper()

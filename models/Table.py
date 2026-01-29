@@ -3,6 +3,7 @@ from datetime import datetime
 import dateutil.parser
 import urllib.parse
 from models.Players import PlayerBasic, Player
+import discord
 
 @dataclass
 class TableScore:
@@ -199,4 +200,3 @@ class Table(TableBasic):
         for t in body:
             tables.append(Table.from_api_response(t))
         return tables
-

@@ -3,9 +3,10 @@ from models.UpdatingBot import UpdatingBot
 from models.Config import LeaderboardConfig
 import API.get, API.post
 from models.Verification import VerificationRequestData
+from models.Players import PlayerAllGames
 from mkcentral import searchMKCPlayersByDiscordID, getMKCPlayerFromID
 from views.Views import LeaderboardSelectView
-from util import get_leaderboard_interaction, get_existing_pending_verification, add_verification, get_user_latest_verification, fix_player_role
+from util import get_leaderboard_interaction, get_existing_pending_verification, add_verification, get_user_latest_verification, fix_player_role, get_server_config_from_interaction
 from custom_checks import check_valid_name
 
 class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
@@ -52,6 +53,8 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         # fix their role.
         # else, register them in this server and give them placement role
         discord_check = await API.get.getPlayerAllGamesFromDiscord(self.lb.website_credentials, interaction.user.id)
+        assert isinstance(discord_check, PlayerAllGames)
+        server_config = get_server_config_from_interaction(interaction)
         if discord_check:
             if discord_check.is_hidden:
                 await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.", ephemeral=True)
@@ -62,7 +65,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
             if self.lb.website_credentials.game in discord_check.registrations:
                 player = await API.get.getPlayerFromLounge(self.lb.website_credentials, discord_check.id)
                 await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
-                await fix_player_role(interaction.guild, self.lb, player, interaction.user)
+                await fix_player_role(interaction.guild, server_config, interaction.user)
                 return
             else:
                 player, error = await API.post.registerPlayer(self.lb.website_credentials, discord_check.name, None)
@@ -71,7 +74,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
                                                     ephemeral=True)
                     return
                 await interaction.followup.send(f"You have been successfully verified in {interaction.guild.name}!", ephemeral=True)
-                await fix_player_role(interaction.guild, self.lb, player, interaction.user)
+                await fix_player_role(interaction.guild, server_config, interaction.user)
                 return
             
         # check if discord ID in lounge profile is different from discord ID in mkc profile
@@ -190,6 +193,8 @@ class VerifyView(discord.ui.View):
         # fix their role.
         # else, register them in this server and give them placement role
         discord_check = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, interaction.user.id)
+        server_config = get_server_config_from_interaction(interaction)
+        assert isinstance(discord_check, PlayerAllGames)
         if discord_check is None:
             await interaction.followup.send("Your Discord account is not currently linked to a Lounge profile. Use the Verify button instead.", ephemeral=True)
             return
@@ -205,7 +210,7 @@ class VerifyView(discord.ui.View):
         if lb.website_credentials.game in discord_check.registrations:
             player = await API.get.getPlayerFromLounge(lb.website_credentials, discord_check.id)
             await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
-            await fix_player_role(interaction.guild, lb, player, interaction.user)
+            await fix_player_role(interaction.guild, server_config, interaction.user)
         else:
             player, error = await API.post.registerPlayer(lb.website_credentials, discord_check.name, None)
             if not player:
@@ -213,7 +218,7 @@ class VerifyView(discord.ui.View):
                                                 ephemeral=True)
                 return
             await interaction.followup.send(f"You have been successfully verified in {interaction.guild.name}!", ephemeral=True)
-            await fix_player_role(interaction.guild, lb, player, interaction.user)
+            await fix_player_role(interaction.guild, server_config, interaction.user)
 
     @discord.ui.button(label="Transfer", custom_id="transfer_button", style=discord.ButtonStyle.primary)
     async def transfer_callback(self, interaction: discord.Interaction[UpdatingBot], button: discord.ui.Button):
@@ -246,12 +251,13 @@ class VerifyView(discord.ui.View):
                                             "\n保留中の認証リクエストはありません。「認証」ボタンを使ってリクエストしてください。", ephemeral=True)
             return
         # fix role if latest verification is approved
+        server_config = get_server_config_from_interaction(interaction)
         if verification.approval_status == "approved":
             discord_check = await API.get.getPlayerFromDiscord(lb.website_credentials, interaction.user.id)
             if discord_check:
                 assert isinstance(interaction.user, discord.Member)
                 await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
-                await fix_player_role(interaction.guild, lb, discord_check, interaction.user)
+                await fix_player_role(interaction.guild, server_config, interaction.user)
                 return
             else:
                 await interaction.followup.send("You have a previously approved verification, but your Discord account is not linked to a Lounge account. Please make a ticket for support."

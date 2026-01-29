@@ -5,7 +5,7 @@ from models import LeaderboardConfig, UpdatingBot, PlayerBasic
 import API.get, API.post
 from custom_checks import yes_no_check, command_check_admin_verification_roles, command_check_all_staff_roles, command_check_updater_roles, command_check_staff_roles, check_staff_roles, find_member
 import custom_checks
-from util import get_leaderboard, get_leaderboard_slash, place_player_with_mmr, fix_player_role, add_player, country_code_to_emoji
+from util import get_leaderboard, get_leaderboard_arg, get_leaderboard_slash, place_player_with_mmr, fix_player_role, add_player, country_code_to_emoji, get_server_config
 from typing import Optional, Union
 import re
 
@@ -25,14 +25,14 @@ class Players(commands.Cog):
     @commands.check(command_check_admin_verification_roles)
     @commands.command(name="addAndPlace", aliases=['apl'])
     @commands.guild_only()
-    async def add_and_place_text(self, ctx, mkcID:int, mmr:int, member:discord.Member | int, *, name):
-        lb = get_leaderboard(ctx)
+    async def add_and_place_text(self, ctx, leaderboard: str, mkcID:int, mmr:int, member:discord.Member | int, *, name):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await add_player(ctx, lb, mkcID, member, name, mmr)
 
     @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @player_group.command(name="add")
-    async def add_player_slash(self, interaction: discord.Interaction, mkc_id:int, member:discord.Member, name: str, mmr: int | None, leaderboard: Optional[str]):
+    async def add_player_slash(self, interaction: discord.Interaction, mkc_id:int, member:discord.Member, name: str, mmr: int | None, leaderboard: str):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await add_player(ctx, lb, mkc_id, member, name, mmr)
@@ -44,8 +44,9 @@ class Players(commands.Cog):
             await ctx.send(f"An error occurred when registering the player: {error}")
             return
         await ctx.send(f"Successfully registered the player in this server")
+        server_config = get_server_config(ctx)
         if registered_player.discord_id:
-            await fix_player_role(ctx.guild, lb, registered_player, int(registered_player.discord_id))
+            await fix_player_role(ctx.guild, server_config, int(registered_player.discord_id))
 
     @app_commands.check(custom_checks.app_command_check_admin_verification_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
@@ -130,11 +131,8 @@ class Players(commands.Cog):
 
     async def fix_member_role(self, ctx: commands.Context, lb: LeaderboardConfig, member: discord.Member):
         assert ctx.guild is not None
-        player = await API.get.getPlayerFromDiscord(lb.website_credentials, member.id)
-        if player is None:
-            await ctx.send("Player could not be found on lounge site")
-            return
-        await fix_player_role(ctx.guild, lb, player, member)
+        server_config = get_server_config(ctx)
+        await fix_player_role(ctx.guild, server_config, member)
         await ctx.send("Fixed player's roles")
 
     @commands.command(name="fixRole")
@@ -258,14 +256,14 @@ class Players(commands.Cog):
     @commands.check(command_check_updater_roles)
     @commands.command(name="place", aliases=['placemmr'])
     @commands.guild_only()
-    async def place_mmr_text(self, ctx, mmr:int, *, name):
-        lb = get_leaderboard(ctx)
+    async def place_mmr_text(self, ctx, leaderboard: str, mmr:int, *, name):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await place_player_with_mmr(ctx, lb, mmr, name)
     
     @app_commands.check(custom_checks.app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @player_group.command(name="place")
-    async def place_mmr_slash(self, interaction: discord.Interaction, mmr:app_commands.Range[int, 0], name:str, leaderboard: Optional[str]):
+    async def place_mmr_slash(self, interaction: discord.Interaction, mmr:app_commands.Range[int, 0], name:str, leaderboard: str):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await place_player_with_mmr(ctx, lb, mmr, name)
@@ -273,8 +271,8 @@ class Players(commands.Cog):
     @commands.check(command_check_admin_verification_roles)
     @commands.command(name="forcePlace")
     @commands.guild_only()
-    async def force_place_text(self, ctx, mmr:int, *, name):
-        lb = get_leaderboard(ctx)
+    async def force_place_text(self, ctx, leaderboard: str, mmr:int, *, name):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await place_player_with_mmr(ctx, lb, mmr, name, force=True)
 
     @commands.command(name='mkcPlayer', aliases=['mkc'])

@@ -2,8 +2,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import API.get, API.post
-from models import LeaderboardConfig, Player
-from util import update_roles, get_leaderboard, get_leaderboard_slash
+from models import LeaderboardConfig, Player, ServerConfig, Penalty, UpdatingBot
+from util import update_roles, get_leaderboard, get_leaderboard_slash, get_leaderboard_arg, get_server_config
 from custom_checks import app_command_check_updater_roles, command_check_updater_roles
 import custom_checks
 from typing import Optional, Union
@@ -15,8 +15,14 @@ class Penalties(commands.Cog):
 
     penalty_group = app_commands.Group(name="penalty", description="Manage penalties", guild_only=True)
 
-    async def get_strike_history(self, lb: LeaderboardConfig, name: str):
-        strikes, _ = await API.get.getStrikes(lb.website_credentials, name)
+    async def get_strike_history(self, server_config: ServerConfig, name: str):
+        strikes: list[Penalty] = []
+        for lb in server_config.leaderboards.values():
+            lb_strikes, _ = await API.get.getStrikes(lb.website_credentials, name)
+            if lb_strikes is None:
+                return ""
+            strikes.extend(lb_strikes)
+        strikes.sort(key=lambda s: s.awarded_on, reverse=True)
         if not strikes or not len(strikes):
             return ""
         
@@ -77,7 +83,8 @@ class Penalties(commands.Cog):
         if table_id:
             e.add_field(name="Table ID", value=table_id)
         if is_strike:
-            strike_str = await self.get_strike_history(lb, player.name)
+            server_config = get_server_config(ctx)
+            strike_str = await self.get_strike_history(server_config, player.name)
             if len(strike_str):
                 e.add_field(name="Strikes", value=strike_str, inline=False)
         rank_change = await update_roles(ctx, lb, player, pen.prev_mmr, pen.new_mmr)
@@ -161,7 +168,7 @@ class Penalties(commands.Cog):
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def penalty_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 1, 200], tier:str, names: str, 
-                                reason:str | None, leaderboard: Optional[str], strike: bool = False, anonymous: bool = False):
+                                reason:str | None, leaderboard: str, strike: bool = False, anonymous: bool = False):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         parsed_names = [n.strip() for n in names.split(",")]
@@ -171,7 +178,7 @@ class Penalties(commands.Cog):
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def strike_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 0, 200], tier:str, names: str, 
-                                reason:str | None, leaderboard: Optional[str], anonymous: bool = False):
+                                reason:str | None, leaderboard: str, anonymous: bool = False):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         parsed_names = [n.strip() for n in names.split(",")]
@@ -179,26 +186,26 @@ class Penalties(commands.Cog):
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="penalty", aliases=['pen'])
-    async def penalty_text(self, ctx, amount:int, tier, *, args):
-        lb = get_leaderboard(ctx)
+    async def penalty_text(self, ctx, leaderboard: str, amount:int, tier, *, args):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args)
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="anonymousPenalty", aliases=['apen', 'apenalty'])
-    async def penalty_anonymous_text(self, ctx, amount:int, tier, *, args):
-        lb = get_leaderboard(ctx)
+    async def penalty_anonymous_text(self, ctx, leaderboard: str, amount:int, tier, *, args):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_anonymous=True)
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="strike", aliases=['str'])
-    async def strike_text(self, ctx, amount:int, tier, *, args):
-        lb = get_leaderboard(ctx)
+    async def strike_text(self, ctx, leaderboard: str, amount:int, tier, *, args):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True)
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="anonymousStrike", aliases=['astr', 'astrike'])
-    async def strike_anonymous_text(self, ctx, amount:int, tier, *, args):
-        lb = get_leaderboard(ctx)
+    async def strike_anonymous_text(self, ctx, leaderboard: str, amount:int, tier, *, args):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True, is_anonymous=True)
 
     async def delete_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, pen_id: int, reason: str | None):
@@ -237,9 +244,9 @@ class Penalties(commands.Cog):
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="strikelist")
-    async def get_strikes_text(self, ctx: commands.Context, *, name: str):
-        lb = get_leaderboard(ctx)
-        strike_str = await self.get_strike_history(lb, name)
+    async def get_strikes_text(self, ctx: commands.Context[UpdatingBot], *, name: str):
+        server_config = get_server_config(ctx)
+        strike_str = await self.get_strike_history(server_config, name)
         if strike_str:
             await ctx.send(strike_str)
         else:

@@ -4,7 +4,7 @@ from discord.ext import commands
 import API.get, API.post
 from models import LeaderboardConfig
 from custom_checks import command_check_staff_roles, app_command_check_staff_roles, app_command_check_admin_roles
-from util import get_leaderboard, get_leaderboard_slash, update_roles
+from util import get_leaderboard, get_leaderboard_arg, get_leaderboard_slash, update_roles
 import custom_checks
 from typing import Optional
 import csv
@@ -51,8 +51,8 @@ class Bonuses(commands.Cog):
 
     @commands.check(command_check_staff_roles)
     @commands.command(name="bonus")
-    async def bonus_text(self, ctx: commands.Context, amount:int, *, args: str):
-        lb = get_leaderboard(ctx)
+    async def bonus_text(self, ctx: commands.Context, leaderboard: str, amount:int, *, args: str):
+        lb = get_leaderboard_arg(ctx, leaderboard)
         splitArgs = args.split(";")
         name = splitArgs[0]
         reason = None
@@ -66,7 +66,7 @@ class Bonuses(commands.Cog):
     @bonus_group.command(name="new")
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def bonus_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 1, 200], name:str, 
-                           reason:str | None, leaderboard: Optional[str]):
+                           reason:str | None, leaderboard: str):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.give_bonus(ctx, lb, amount, name, reason)

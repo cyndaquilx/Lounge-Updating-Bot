@@ -38,12 +38,21 @@ def get_leaderboard(ctx: commands.Context) -> LeaderboardConfig:
         raise LeaderboardNotFoundException
     return leaderboard
 
+def get_leaderboard_arg(ctx: commands.Context, arg: str) -> LeaderboardConfig:
+    server_info = get_server_config(ctx)
+    leaderboard_str = server_info.prefixes.get(arg, None)
+    if not leaderboard_str:
+        raise LeaderboardNotFoundException
+    leaderboard = server_info.leaderboards.get(leaderboard_str, None)
+    if not leaderboard:
+        raise LeaderboardNotFoundException
+    return leaderboard
+
 def get_leaderboard_slash(ctx: commands.Context, lb: str | None) -> LeaderboardConfig:
     server_info = get_server_config(ctx)
-    # if we don't provide a leaderboard argument and there's only 1 leaderboard in the server
-    # we should just return that leaderboard
+    # if we don't provide a leaderboard argument, we should just return that leaderboard
     leaderboard = None
-    if lb is None and len(server_info.leaderboards) == 1:
+    if lb is None:
         leaderboard = next(iter(server_info.leaderboards.values()))
     elif lb:
         leaderboard = server_info.leaderboards.get(lb, None)
@@ -59,7 +68,7 @@ def get_leaderboard_interaction(
     """
     server_info = get_server_config_from_interaction(interaction)
     leaderboard = None
-    if lb is None and len(server_info.leaderboards) == 1:
+    if lb is None:
         leaderboard = next(iter(server_info.leaderboards.values()))
     elif lb:
         leaderboard = server_info.leaderboards.get(lb, None)

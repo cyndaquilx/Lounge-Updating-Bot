@@ -176,7 +176,7 @@ async def getTable(credentials: WebsiteCredentials, table_id: int):
             table = await resp.json()
             return Table.from_api_response(table)
 
-async def getPending(credentials: WebsiteCredentials):
+async def getPending(credentials: WebsiteCredentials) -> list[Table] | None:
     request_url = f"{credentials.url}/api/table/unverified"
     if credentials.game:
         request_url += f"?game={credentials.game}"

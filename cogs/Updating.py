@@ -8,10 +8,10 @@ import API.post, API.get
 from custom_checks import check_updater_roles, command_check_reporter_roles, command_check_updater_roles, app_command_check_updater_roles, command_check_admin_roles
 import custom_checks
 
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime, timedelta
-from util import submit_table, delete_table, get_leaderboard, get_leaderboard_slash, set_multipliers, update_roles, parse_scores, check_placements
-from models import ServerConfig, LeaderboardConfig, UpdatingBot, Player
+from util import submit_table, delete_table, set_multipliers, update_roles, parse_scores, check_placements, get_server_config
+from models import ServerConfig, LeaderboardConfig, UpdatingBot, Player, Table
 
 import traceback
 import copy
@@ -22,31 +22,54 @@ class Updating(commands.Cog):
 
     update_group = app_commands.Group(name="update", description="Update tables", guild_only=True)
 
-    async def get_pending(self, ctx: commands.Context, lb: LeaderboardConfig):
-        tables = await API.get.getPending(lb.website_credentials)
-        if not tables or len(tables) == 0:
+    async def get_table_and_lb(self, ctx: commands.Context, table_id: int) -> Tuple[Table | None, LeaderboardConfig | None]:
+        server_config = get_server_config(ctx)
+        found_lb: LeaderboardConfig | None = None
+        for lb in server_config.leaderboards.values():
+            lb_tables = await API.get.getPending(lb.website_credentials)
+            if not lb_tables:
+                continue
+            lb_ids = [table.id for table in lb_tables]
+            if table_id in lb_ids:
+                found_lb = lb
+                break
+        if not found_lb:
+            return None, None
+        table = await API.get.getTable(found_lb.website_credentials, table_id)
+        return table, found_lb
+
+    async def get_pending(self, ctx: commands.Context):
+        server_config = get_server_config(ctx)
+        channel_tables: dict[int, list[Table]] = {}
+        #tables: list[Table] = []
+        for lb in server_config.leaderboards.values():
+            lb_tables = await API.get.getPending(lb.website_credentials)
+            if not lb_tables:
+                continue
+            for table in lb_tables:
+                tier_results_channel = lb.tier_results_channels[table.tier]
+                if tier_results_channel not in channel_tables:
+                    channel_tables[tier_results_channel] = []
+                channel_tables[tier_results_channel].append(table)
+
+        if len(channel_tables) == 0:
             await ctx.send("There are no pending tables")
             return
         msg = ""
-        for tier in lb.tier_results_channels.keys():
-            count = 0
-            ids = []
+        for channel_id, tables in channel_tables.items():
+            if len(tables) < 1:
+                continue
+            curr_line = f"\n<#{channel_id}> - {len(tables)} tables\n"
+            if len(msg) + len(curr_line) > 2000:
+                await ctx.send(msg)
+                msg = ""
+            msg += curr_line
             for table in tables:
-                if table.tier == tier:
-                    ids.append(table.id)
-                    count += 1
-            if count > 0:
-                curr_line = f"\n<#{lb.tier_results_channels[tier]}> - {count} tables\n"
+                curr_line = f"\tID {table.id}\n"
                 if len(msg) + len(curr_line) > 2000:
                     await ctx.send(msg)
                     msg = ""
                 msg += curr_line
-                for tableid in ids:
-                    curr_line = f"\tID {tableid}\n"
-                    if len(msg) + len(curr_line) > 2000:
-                        await ctx.send(msg)
-                        msg = ""
-                    msg += curr_line
         if len(msg) > 0:
             await ctx.send(msg) 
 
@@ -54,39 +77,51 @@ class Updating(commands.Cog):
     @commands.command(name="pending")
     @commands.guild_only()
     async def pending_text(self, ctx):
-        lb = get_leaderboard(ctx)
-        await self.get_pending(ctx, lb)
+        await self.get_pending(ctx)
         
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name="pending")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     @app_commands.guild_only()
-    async def pending_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
+    async def pending_slash(self, interaction: discord.Interaction):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.get_pending(ctx, lb)
+        await self.get_pending(ctx)
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="table")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def update_table_slash(self, interaction: discord.Interaction, tableid: int, multipliers: Optional[str], leaderboard: Optional[str]):
+    async def update_table_slash(self, interaction: discord.Interaction, table_id: int, multipliers: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.update_table(ctx, lb, tableid, extraArgs=multipliers)
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
+            await ctx.send("Table couldn't be found")
+            return
+        await self.update_table(ctx, lb, table_id, extraArgs=multipliers)
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="update", aliases=["u"])
     @commands.guild_only()
-    async def update_table_text(self, ctx, tableid: int, *, extraArgs=""):
-        lb = get_leaderboard(ctx)
-        await self.update_table(ctx, lb, tableid, extraArgs=extraArgs)
+    async def update_table_text(self, ctx, table_id: int, *, extraArgs=""):
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
+            await ctx.send("Table couldn't be found")
+            return
+        await self.update_table(ctx, lb, table_id, extraArgs=extraArgs)
 
-    async def update_all_tables(self, ctx: commands.Context, lb: LeaderboardConfig, tier:Optional[str] = None, until_id: Optional[int] = None, after_id: Optional[int] = None):
-        tables = await API.get.getPending(lb.website_credentials)
-        if tables is None or not len(tables):
+    async def update_all_tables(self, ctx: commands.Context, tier:Optional[str] = None, until_id: Optional[int] = None, after_id: Optional[int] = None):
+        server_config = get_server_config(ctx)
+        # store the leaderboard config with each table so placements are done correctly
+        tables: list[tuple[LeaderboardConfig, Table]] = []
+        for lb in server_config.leaderboards.values():
+            lb_tables = await API.get.getPending(lb.website_credentials)
+            if not lb_tables:
+                continue
+            for table in lb_tables:
+                tables.append((lb, table))
+        if not len(tables):
             await ctx.send("There are no pending tables")
             return
-        for table in tables:
+        up_to = f"up to ID {until_id} " if until_id else ""
+        in_tier = f"in Tier {tier.upper()}" if tier else ""
+        for lb, table in tables:
             if tier and table.tier != tier.upper():
                 continue
             if until_id and table.id > until_id:
@@ -99,92 +134,75 @@ class Updating(commands.Cog):
                     return
             except Exception as e:
                 traceback.print_exc()
-        up_to = f"up to ID {until_id} " if until_id else ""
-        in_tier = f"in Tier {tier.upper()}" if tier else ""
+        
         await ctx.send(f"Updated all tables {up_to}{in_tier}")
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="all")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def update_all_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
+    async def update_all_slash(self, interaction: discord.Interaction):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.update_all_tables(ctx, lb)
+        await self.update_all_tables(ctx)
 
     @commands.check(command_check_updater_roles)
     @commands.command(aliases=['ua'])
     @commands.guild_only()
     async def updateAll(self, ctx):
-        lb = get_leaderboard(ctx)
-        await self.update_all_tables(ctx, lb)
+        await self.update_all_tables(ctx)
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="tier")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def update_tier_slash(self, interaction: discord.Interaction, tier: str, leaderboard: Optional[str]):
+    async def update_tier_slash(self, interaction: discord.Interaction, tier: str):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.update_all_tables(ctx, lb, tier=tier)
+        await self.update_all_tables(ctx, tier=tier)
 
     @commands.check(command_check_updater_roles)
     @commands.command(aliases=['ut'])
     @commands.guild_only()
     async def updateTier(self, ctx, tier):
-        lb = get_leaderboard(ctx)
-        await self.update_all_tables(ctx, lb, tier=tier)
+        await self.update_all_tables(ctx, tier=tier)
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="after")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def update_after_slash(self, interaction: discord.Interaction, table_id: int, leaderboard: Optional[str]):
+    async def update_after_slash(self, interaction: discord.Interaction, table_id: int):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.update_all_tables(ctx, lb, after_id=table_id)
+        await self.update_all_tables(ctx, after_id=table_id)
 
     @commands.check(command_check_updater_roles)
     @commands.command(aliases=['uafter'])
     @commands.guild_only()
     async def updateAfter(self, ctx, tableid:int):
-        lb = get_leaderboard(ctx)
-        await self.update_all_tables(ctx, lb, after_id=tableid)
+        await self.update_all_tables(ctx, after_id=tableid)
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="until")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def update_until_slash(self, interaction: discord.Interaction, table_id: int, leaderboard: Optional[str]):
+    async def update_until_slash(self, interaction: discord.Interaction, table_id: int):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.update_all_tables(ctx, lb, until_id=table_id)
+        await self.update_all_tables(ctx, until_id=table_id)
 
     @commands.check(command_check_updater_roles)
     @commands.command(aliases=['uu'])
     @commands.guild_only()
     async def updateUntil(self, ctx, tableid:int):
-        lb = get_leaderboard(ctx)
-        await self.update_all_tables(ctx, lb, until_id=tableid)
+        await self.update_all_tables(ctx, until_id=tableid)
 
     @app_commands.check(app_command_check_updater_roles)
     @update_group.command(name="tier_until")
-    @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def update_tier_until_slash(self, interaction: discord.Interaction, tier: str, table_id: int, leaderboard: Optional[str]):
+    async def update_tier_until_slash(self, interaction: discord.Interaction, tier: str, table_id: int):
         ctx = await commands.Context.from_interaction(interaction)
-        lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.update_all_tables(ctx, lb, tier=tier, until_id=table_id)
+        await self.update_all_tables(ctx, tier=tier, until_id=table_id)
 
     @commands.check(command_check_updater_roles)
     @commands.command(aliases=['utu'])
     @commands.guild_only()
     async def updateTierUntil(self, ctx, tier: str, table_id:int):
-        lb = get_leaderboard(ctx)
-        await self.update_all_tables(ctx, lb, tier=tier, until_id=table_id)
+        await self.update_all_tables(ctx, tier=tier, until_id=table_id)
 
     @commands.check(command_check_updater_roles)
     @commands.command(aliases=['setml'])
     @commands.guild_only()
     async def setMultipliers(self, ctx, table_id:int, *, extraArgs=""):
-        lb = get_leaderboard(ctx)
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is None:
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
             await ctx.send("Table couldn't be found")
             return
         workmsg = await ctx.send("Working...")
@@ -196,9 +214,8 @@ class Updating(commands.Cog):
     @commands.command(aliases=['mlraces'])
     @commands.guild_only()
     async def multiplierRaces(self, ctx: commands.Context, table_id: int, *, extraArgs=""):
-        lb = get_leaderboard(ctx)
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is None:
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
             await ctx.send("Table couldn't be found")
             return "Table not found"
         workmsg = await ctx.send("Working...")
@@ -327,10 +344,9 @@ class Updating(commands.Cog):
     @commands.command(name="getMMRTable")
     @commands.guild_only()
     async def get_mmr_table_text(self, ctx: commands.Context, table_id: int):
-        lb = get_leaderboard(ctx)
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if not table:
-            await ctx.send("table not found")
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
+            await ctx.send("Table couldn't be found")
             return
         if not table.verified_on:
             await ctx.send("Table not updated yet")
@@ -339,10 +355,10 @@ class Updating(commands.Cog):
         f = discord.File(table_img, filename="MMRTable.png")
         await ctx.send(file=f)
     
-    async def update_scores(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, args: str):
+    async def update_scores(self, ctx: commands.Context, table_id: int, args: str):
         assert ctx.guild is not None
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is None:
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
             await ctx.send("Table couldn't be found")
             return
         if not check_updater_roles(ctx):
@@ -380,13 +396,12 @@ class Updating(commands.Cog):
     @commands.command(name="updateScores", aliases=['us'])
     @commands.guild_only()
     async def update_scores_text(self, ctx, tableID:int, *, args):
-        lb = get_leaderboard(ctx)
-        await self.update_scores(ctx, lb, tableID, args)
+        await self.update_scores(ctx, tableID, args)
 
-    async def fix_table_names(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, args: str):
+    async def fix_table_names(self, ctx: commands.Context, table_id: int, args: str):
         assert ctx.guild is not None
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is None:
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
             await ctx.send("Table couldn't be found")
             return
         old_table = copy.deepcopy(table) # make a deep copy so we can preserve data after mutation
@@ -431,13 +446,12 @@ class Updating(commands.Cog):
     @commands.command(name="fixNames")
     @commands.guild_only()
     async def fix_names_text(self, ctx: commands.Context, table_id:int, *, args):
-        lb = get_leaderboard(ctx)
-        await self.fix_table_names(ctx, lb, table_id, args)
+        await self.fix_table_names(ctx, table_id, args)
 
-    async def fix_table_scores(self, ctx: commands.Context, lb: LeaderboardConfig, table_id: int, args: str):
+    async def fix_table_scores(self, ctx: commands.Context, table_id: int, args: str):
         assert ctx.guild is not None
-        table = await API.get.getTable(lb.website_credentials, table_id)
-        if table is None:
+        table, lb = await self.get_table_and_lb(ctx, table_id)
+        if table is None or lb is None:
             await ctx.send("Table couldn't be found")
             return
         old_table = copy.deepcopy(table) # make a deep copy so we can preserve data after mutation
@@ -469,15 +483,13 @@ class Updating(commands.Cog):
     @commands.command(name="fixScores")
     @commands.guild_only()
     async def fix_scores_text(self, ctx: commands.Context, table_id:int, *, args):
-        lb = get_leaderboard(ctx)
-        await self.fix_table_scores(ctx, lb, table_id, args)
+        await self.fix_table_scores(ctx, table_id, args)
         
     #adds correct roles and nicknames for players when they join server
     @commands.Cog.listener(name='on_member_join')
     async def on_member_join(self, member: discord.Member):
         if member.bot:
             return
-
         server_info: ServerConfig | None = self.bot.config.servers.get(member.guild.id, None)
         if not server_info:
             return
