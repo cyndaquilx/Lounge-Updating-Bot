@@ -183,10 +183,11 @@ class VerifyView(discord.ui.View):
         # else, register them in this server and give them placement role
         discord_check = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, interaction.user.id)
         server_config = get_server_config_from_interaction(interaction)
-        assert isinstance(discord_check, PlayerAllGames)
         if discord_check is None:
             await interaction.followup.send("Your Discord account is not currently linked to a Lounge profile. Use the Verify button instead.", ephemeral=True)
             return
+        
+        assert isinstance(discord_check, PlayerAllGames)
         
         if discord_check.is_hidden:
             await interaction.followup.send(f"Your Lounge profile is hidden. Please make a ticket if you believe this is an error.", ephemeral=True)
