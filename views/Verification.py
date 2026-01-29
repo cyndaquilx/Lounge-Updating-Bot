@@ -53,7 +53,6 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
         # fix their role.
         # else, register them in this server and give them placement role
         discord_check = await API.get.getPlayerAllGamesFromDiscord(self.lb.website_credentials, interaction.user.id)
-        assert isinstance(discord_check, PlayerAllGames)
         server_config = get_server_config_from_interaction(interaction)
         if discord_check:
             if discord_check.is_hidden:
@@ -62,6 +61,7 @@ class VerifyForm(discord.ui.Modal, title="Lounge Verification"):
             if mkc_player.id != discord_check.mkc_id:
                 await interaction.followup.send("Your Discord account is linked to a different MKC profile than what is linked to your Lounge profile. Please create a ticket.", ephemeral=True)
                 return
+            assert isinstance(discord_check, PlayerAllGames)
             if self.lb.website_credentials.game in discord_check.registrations:
                 player = await API.get.getPlayerFromLounge(self.lb.website_credentials, discord_check.id)
                 await interaction.followup.send("You are already verified in this server!\nあなたは既にこのサーバーで認証されています！", ephemeral=True)
