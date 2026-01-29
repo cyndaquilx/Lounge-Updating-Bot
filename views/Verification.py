@@ -150,19 +150,8 @@ class VerifyView(discord.ui.View):
         if not server_config:
             await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
             return
-        leaderboards = server_config.leaderboards
-        if len(leaderboards) > 1:
-            await interaction.response.send_message(
-                view=LeaderboardSelectView(
-                    leaderboards,
-                    self.leaderboard_callback
-                ),
-                ephemeral=True,
-                delete_after=30
-            )
-        else:
-            leaderboard_name = next(iter(server_config.leaderboards.keys()))
-            await self.leaderboard_callback(interaction, leaderboard_name)
+        leaderboard_name = next(iter(server_config.leaderboards.keys()))
+        await self.leaderboard_callback(interaction, leaderboard_name)
 
     async def transfer_leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
         assert interaction.guild is not None
@@ -228,19 +217,8 @@ class VerifyView(discord.ui.View):
         if not server_config:
             await interaction.response.send_message("This server cannot be found in the bot config", ephemeral=True)
             return
-        leaderboards = server_config.leaderboards
-        if len(leaderboards) > 1:
-            await interaction.response.send_message(
-                view=LeaderboardSelectView(
-                    leaderboards,
-                    self.transfer_leaderboard_callback
-                ),
-                ephemeral=True,
-                delete_after=30
-            )
-        else:
-            leaderboard_name = next(iter(server_config.leaderboards.keys()))
-            await self.transfer_leaderboard_callback(interaction, leaderboard_name)
+        leaderboard_name = next(iter(server_config.leaderboards.keys()))
+        await self.transfer_leaderboard_callback(interaction, leaderboard_name)
 
     async def status_leaderboard_callback(self, interaction: discord.Interaction[UpdatingBot], leaderboard: str | None):
         assert interaction.guild is not None
@@ -283,15 +261,5 @@ class VerifyView(discord.ui.View):
             await interaction.followup.send("This server cannot be found in the bot config", ephemeral=True)
             return
         leaderboards = server_config.leaderboards
-        if len(leaderboards) > 1:
-            await interaction.response.send_message(
-                view=LeaderboardSelectView(
-                    leaderboards,
-                    self.status_leaderboard_callback
-                ),
-                ephemeral=True,
-                delete_after=30
-            )
-        else:
-            leaderboard_name = next(iter(server_config.leaderboards.keys()))
-            await self.status_leaderboard_callback(interaction, leaderboard_name)
+        leaderboard_name = next(iter(server_config.leaderboards.keys()))
+        await self.status_leaderboard_callback(interaction, leaderboard_name)
