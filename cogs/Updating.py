@@ -40,7 +40,7 @@ class Updating(commands.Cog):
 
     async def get_pending(self, ctx: commands.Context):
         server_config = get_server_config(ctx)
-        channel_tables: dict[int, list[Table]] = {}
+        channel_tables_dict: dict[int, dict[int, Table]] = {}
         #tables: list[Table] = []
         for lb in server_config.leaderboards.values():
             lb_tables = await API.get.getPending(lb.website_credentials)
@@ -48,10 +48,11 @@ class Updating(commands.Cog):
                 continue
             for table in lb_tables:
                 tier_results_channel = lb.tier_results_channels[table.tier]
-                if tier_results_channel not in channel_tables:
-                    channel_tables[tier_results_channel] = []
-                channel_tables[tier_results_channel].append(table)
+                if tier_results_channel not in channel_tables_dict:
+                    channel_tables_dict[tier_results_channel] = {}
+                channel_tables_dict[tier_results_channel][table.id] = table
 
+        channel_tables = {k: list(v.values()) for k, v in channel_tables_dict.items()}
         if len(channel_tables) == 0:
             await ctx.send("There are no pending tables")
             return
@@ -108,14 +109,16 @@ class Updating(commands.Cog):
 
     async def update_all_tables(self, ctx: commands.Context, tier:Optional[str] = None, until_id: Optional[int] = None, after_id: Optional[int] = None):
         server_config = get_server_config(ctx)
+        # table ID: (lb, table)
         # store the leaderboard config with each table so placements are done correctly
-        tables: list[tuple[LeaderboardConfig, Table]] = []
+        tables_dict: dict[int, tuple[LeaderboardConfig, Table]] = {}
         for lb in server_config.leaderboards.values():
             lb_tables = await API.get.getPending(lb.website_credentials)
             if not lb_tables:
                 continue
             for table in lb_tables:
-                tables.append((lb, table))
+                tables_dict[table.id] = (lb, table)
+        tables = sorted(list(tables_dict.values()), key=lambda item: item[1].id)
         if not len(tables):
             await ctx.send("There are no pending tables")
             return
