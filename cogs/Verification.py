@@ -85,9 +85,9 @@ class Verification(commands.Cog):
             # check if player has already been verified for another game in the meantime,
             # then register them / fix their role
             all_games_check = await API.get.getPlayerAllGamesFromDiscord(lb.website_credentials, verification.discord_id)
-            assert isinstance(all_games_check, PlayerAllGames)
             server_config = get_server_config(ctx)
             if all_games_check:
+                assert isinstance(all_games_check, PlayerAllGames)
                 if lb.website_credentials.game not in all_games_check.registrations:
                     player, error = await API.post.registerPlayer(lb.website_credentials, all_games_check.name)
                     if error:
