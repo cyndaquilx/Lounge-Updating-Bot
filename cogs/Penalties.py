@@ -16,12 +16,14 @@ class Penalties(commands.Cog):
     penalty_group = app_commands.Group(name="penalty", description="Manage penalties", guild_only=True)
 
     async def get_strike_history(self, server_config: ServerConfig, name: str):
-        strikes: list[Penalty] = []
+        strike_dict: dict[int, Penalty] = {}
         for lb in server_config.leaderboards.values():
             lb_strikes, _ = await API.get.getStrikes(lb.website_credentials, name)
             if lb_strikes is None:
                 return ""
-            strikes.extend(lb_strikes)
+            for strike in lb_strikes:
+                strike_dict[strike.id] = strike
+        strikes = list(strike_dict.values())
         strikes.sort(key=lambda s: s.awarded_on, reverse=True)
         if not strikes or not len(strikes):
             return ""
