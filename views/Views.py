@@ -70,18 +70,18 @@ class RequestButton(View):
         )
 
         async def button_callback(interaction: Interaction[UpdatingBot]):
-            server_info = get_server_config_from_interaction(interaction)
-            leaderboards = server_info.leaderboards
-            if len(leaderboards) > 1:
-                await interaction.response.send_message(
-                    view=LeaderboardSelectView(
-                        leaderboards,
-                        self.leaderboard_callback
-                    ),
-                    ephemeral=True,
-                    delete_after=30
-                )
-                return
+            # server_info = get_server_config_from_interaction(interaction)
+            # leaderboards = server_info.leaderboards
+            # if len(leaderboards) > 1:
+            #     await interaction.response.send_message(
+            #         view=LeaderboardSelectView(
+            #             leaderboards,
+            #             self.leaderboard_callback
+            #         ),
+            #         ephemeral=True,
+            #         delete_after=30
+            #     )
+            #     return
 
             await self.leaderboard_callback(interaction, None)
 
