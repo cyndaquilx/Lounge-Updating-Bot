@@ -87,6 +87,7 @@ class Admin(commands.Cog):
     async def fix_all_player_roles(self, ctx: commands.Context):
         if not ctx.guild: 
             return
+        await ctx.send("Working...")
         member_count = len(ctx.guild.members)
         server_config = get_server_config(ctx)
         for i, member in enumerate(ctx.guild.members):
