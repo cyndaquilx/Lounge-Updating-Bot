@@ -137,6 +137,7 @@ class TableBasic:
 class Table(TableBasic):
     id: int
     season: int
+    game: str | None
     created_on: datetime
     verified_on: datetime | None
     deleted_on: datetime | None
@@ -167,6 +168,10 @@ class Table(TableBasic):
         author_id = int(body["authorId"])
         
         tier = body["tier"]
+
+        game = None
+        if "game" in body:
+            game = body["game"]
         teams: list[TableTeam] = []
         num_players = 0
         for t in body["teams"]:
@@ -190,7 +195,7 @@ class Table(TableBasic):
             scores.sort(key=lambda s: s.score, reverse=True)
             teams.append(TableTeam(rank, scores))
         size = int(num_players / body["numTeams"])
-        table = cls(size, tier, teams, author_id, None, id, season, created_on, verified_on,
+        table = cls(size, tier, teams, author_id, None, id, season, game, created_on, verified_on,
                     deleted_on, table_message_id, update_message_id)
         return table
     

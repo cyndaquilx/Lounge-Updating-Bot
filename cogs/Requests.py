@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
-from util import get_leaderboard_slash, get_leaderboard, set_multipliers
+from util import get_leaderboard_slash, get_leaderboard, set_multipliers, get_server_config
 from models import LeaderboardConfig, PenaltyRequest, UpdatingBot
 from custom_checks import app_command_check_reporter_roles, app_command_check_updater_roles, command_check_updater_roles, check_updater_roles
 import API.get, API.post
@@ -238,11 +238,20 @@ class Requests(commands.Cog):
         penalty_type = lb.penalty_types.get(request_data.penalty_name)
         if penalty_type is None :
             return "Penalty name mismatch"
+        
+        server_config = get_server_config(ctx)
+        table_lb = None
+        for lb_item in server_config.leaderboards.values():
+            if lb_item.website_credentials.game == table.game:
+                table_lb = lb_item
+                break
+        if table_lb is None:
+            return "Leaderboard not found in this server"
 
         penalty_instance = penalty_instance_builder(request_data.penalty_name, penalty_type.type, request_data.player_id, request_data.table_id, request_data.number_of_races)
         penalties_cog = self.bot.get_cog('Penalties')
         
-        id_result = await penalty_instance.apply_penalty(lb, ctx, penalties_cog, table.tier, request_data.player_name, penalty_type.amount, penalty_type.is_strike)
+        id_result = await penalty_instance.apply_penalty(table_lb, ctx, penalties_cog, table.tier, request_data.player_name, penalty_type.amount, penalty_type.is_strike)
 
         embed = discord.Embed()
         embed.title = "Penalty request accepted" if None not in id_result else "Penalty request error"
