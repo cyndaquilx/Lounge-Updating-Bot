@@ -5,7 +5,7 @@ from discord.app_commands import locale_str
 
 from util.Translator import CustomTranslator
 from util import get_leaderboard_slash, get_leaderboard, set_multipliers, get_server_config
-from models import LeaderboardConfig, PenaltyRequest, UpdatingBot
+from models import LeaderboardConfig, PenaltyRequest, UpdatingBot, ServerConfig
 from custom_checks import app_command_check_reporter_roles, app_command_check_updater_roles, command_check_updater_roles, check_updater_roles
 import API.get, API.post
 import custom_checks
@@ -379,10 +379,17 @@ class Requests(commands.Cog):
         await penalty_instance.apply_multiplier(lb, ctx, self.bot, table, player_name, requests_list)
 
     async def pending_requests(self, ctx: commands.Context, lb: LeaderboardConfig):
-        requests = await API.get.getPendingPenaltyRequests(lb.website_credentials)
-        if requests is None:
-            await ctx.send("An error occured while fetching the requests")
-            return
+        server_config = get_server_config(ctx)
+        requests_dict: dict[int, PenaltyRequest] = {}
+        for lb in server_config.leaderboards.values():
+            requests = await API.get.getPendingPenaltyRequests(lb.website_credentials)
+            if requests is None:
+                await ctx.send("An error occured while fetching the requests")
+                return
+            for r in requests:
+                requests_dict[r.id] = r
+        
+        requests = sorted(list(requests_dict.values()), key=lambda r: r.id)
         if len(requests) == 0:
             await ctx.send("There are no pending requests")
             return

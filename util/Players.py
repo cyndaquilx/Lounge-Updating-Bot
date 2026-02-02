@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot, ListPlayer, ServerConfig
+from util import get_server_config, fix_player_role
 from custom_checks import check_valid_name, yes_no_check
 import API.get, API.post
 
@@ -52,30 +53,10 @@ async def add_player(ctx: commands.Context[UpdatingBot], lb: LeaderboardConfig, 
         await ctx.send(f"An error occurred while trying to verify player {name}: {error}")
         return False
     
+    server_config = get_server_config(ctx)
     roleGiven = ""
     if found_member:
-        roles: list[discord.Role] = []
-        player_role = ctx.guild.get_role(lb.player_role_id)
-        if player_role:
-            roles.append(player_role)
-        if mmr is not None:
-            rank = lb.get_rank(mmr)
-            rank_role = ctx.guild.get_role(rank.role_id)
-            if rank_role:
-                roles.append(rank_role)
-        else:
-            placement_role = ctx.guild.get_role(lb.placement_role_id)
-            if placement_role:
-                roles.append(placement_role)
-        role_names = ", ".join([role.name for role in roles])
-        try:
-            await found_member.add_roles(*roles)
-            if found_member.display_name != name:
-                await found_member.edit(nick=name)
-            roleGiven += f"\nAlso gave {found_member.mention} {role_names} role"
-        except Exception as e:
-            roleGiven += f"\nCould not give {role_names} roles to the player due to the following: {e}"
-            pass
+        await fix_player_role(ctx.guild, server_config, found_member)
 
         if lb.enable_verification_dms:
             quick_start_channel = ctx.guild.get_channel(lb.quick_start_channel)
