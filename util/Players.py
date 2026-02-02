@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from models import LeaderboardConfig, Player, PlayerBasic, UpdatingBot, ListPlayer, ServerConfig
-from util import get_server_config, fix_player_role
+from util.Leaderboards import get_server_config
 from custom_checks import check_valid_name, yes_no_check
 import API.get, API.post
 
