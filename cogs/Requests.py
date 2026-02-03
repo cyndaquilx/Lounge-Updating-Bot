@@ -10,7 +10,7 @@ from custom_checks import app_command_check_reporter_roles, app_command_check_up
 import API.get, API.post
 import custom_checks
 
-from typing import Optional
+from typing import Optional, Tuple
 
 class PenaltyInstance:
     def __init__(self, penalty_name, lounge_id, table_id):
@@ -491,18 +491,24 @@ class Requests(commands.Cog):
         lb = get_leaderboard_slash(ctx, leaderboard)
         await self.refuse_request(ctx, lb, request_id)
 
-    async def accept_all_request(self, ctx: commands.Context, lb: LeaderboardConfig):
-        requests_list = await API.get.getPendingPenaltyRequests(lb.website_credentials)
-        if requests_list is None:
-            await ctx.send("An error occured while fetching the requests")
-            return
+    async def accept_all_request(self, ctx: commands.Context):
+        server_config = get_server_config(ctx)
+        requests_dict: dict[int, Tuple[PenaltyRequest, LeaderboardConfig]] = {}
+        for lb in server_config.leaderboards.values():
+            requests = await API.get.getPendingPenaltyRequests(lb.website_credentials)
+            if requests is None:
+                await ctx.send("An error occured while fetching the requests")
+                return
+            for r in requests:
+                requests_dict[r.id] = (r, lb)
+        requests_list = sorted(requests_dict.values(), key=lambda x: x[0].id)
         remaining_requests = len(requests_list)
         if remaining_requests == 0:
             await ctx.send("There are no pending requests")
             return
         remaining_message = await ctx.send(f"Remaining requests: {remaining_requests}, please wait.")
         
-        for penalty_request in requests_list:
+        for penalty_request, lb in requests_list:
             assert isinstance(ctx.author, discord.Member)
             await ctx.send(await self.accept_request_process(lb, ctx, penalty_request))
             remaining_requests -= 1
@@ -517,7 +523,7 @@ class Requests(commands.Cog):
     @commands.command(name='acceptAllPenalties', aliases=['acceptAllPens', 'uapens', 'aapens'])
     async def accept_all_requests_command_text(self, ctx: commands.Context):
         lb = get_leaderboard(ctx)
-        await self.accept_all_request(ctx, lb)
+        await self.accept_all_request(ctx)
 
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.command(name='accept_all_penalties')
@@ -526,7 +532,7 @@ class Requests(commands.Cog):
     async def accept_all_requests_command_slash(self, interaction: discord.Interaction, leaderboard: Optional[str]):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
-        await self.accept_all_request(ctx, lb)
+        await self.accept_all_request(ctx)
 
 async def setup(bot):
     await bot.add_cog(Requests(bot))

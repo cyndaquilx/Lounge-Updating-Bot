@@ -4,6 +4,7 @@ from models import TableBasic, Table, LeaderboardConfig
 from custom_checks import yes_no_check
 import API.post, API.get
 from typing import Union
+from util.Leaderboards import get_server_config
 
 async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: TableBasic, bypass_confirmation = False) -> Table | None:
     assert ctx.guild is not None
@@ -36,13 +37,22 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
         warning = f"The total score of {total} might be incorrect! Most tables should add up to {expected_total} points"
         e.add_field(name="Warning", value=warning, inline=False)
 
+    # get the right leaderboard so we can send table to the right channel (since lounge site doesn't care what lb we use to submit,
+    # but we want to make sure to use the correct lb for sending the table on discord)
+    send_lb = lb
+    server_config = get_server_config(ctx)
+    for server_lb in server_config.leaderboards.values():
+        if server_lb.website_credentials.game == sent_table.game:
+            send_lb = server_lb
+            break
+
     # table_image_url = f"{lb.website_credentials.url}{sent_table.get_table_image_url()}"
     # e.set_image(url=table_image_url)
 
-    channel = ctx.guild.get_channel(lb.tier_results_channels[table.tier])
+    channel = ctx.guild.get_channel(send_lb.tier_results_channels[table.tier])
     if channel:
         assert isinstance(channel, discord.TextChannel)
-        table_image = await API.get.downloadTableImage(lb.website_credentials, sent_table.id)
+        table_image = await API.get.downloadTableImage(send_lb.website_credentials, sent_table.id)
         if table_image is not None:
             image_file = discord.File(table_image, filename=f"{sent_table.id}.png")
             e.set_image(url=f"attachment://{sent_table.id}.png")
@@ -51,7 +61,7 @@ async def submit_table(ctx: commands.Context, lb: LeaderboardConfig, table: Tabl
             image_file = None
             tableMsg = await channel.send(embed=e)
     
-    await API.post.setTableMessageId(lb.website_credentials, sent_table.id, tableMsg.id)
+    await API.post.setTableMessageId(send_lb.website_credentials, sent_table.id, tableMsg.id)
     if embedded is not None:
         await embedded.delete()
     if channel == ctx.channel:
