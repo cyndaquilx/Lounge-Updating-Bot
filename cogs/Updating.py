@@ -25,17 +25,19 @@ class Updating(commands.Cog):
     async def get_table_and_lb(self, ctx: commands.Context, table_id: int) -> Tuple[Table | None, LeaderboardConfig | None]:
         server_config = get_server_config(ctx)
         found_lb: LeaderboardConfig | None = None
+        table: Table | None = None
         for lb in server_config.leaderboards.values():
-            lb_tables = await API.get.getPending(lb.website_credentials)
-            if not lb_tables:
-                continue
-            lb_ids = [table.id for table in lb_tables]
-            if table_id in lb_ids:
+            # hacky workaround, basically if we are on the first iteration of the loop we try to get the table,
+            # then if the table still isnt found after that then we return None
+            if table is None:
+                table = await API.get.getTable(lb.website_credentials, table_id)
+            if table is None:
+                return None, None
+            if table.game == lb.website_credentials.game:
                 found_lb = lb
                 break
         if not found_lb:
             return None, None
-        table = await API.get.getTable(found_lb.website_credentials, table_id)
         return table, found_lb
 
     async def get_pending(self, ctx: commands.Context):
