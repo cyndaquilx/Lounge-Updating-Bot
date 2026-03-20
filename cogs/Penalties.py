@@ -24,7 +24,7 @@ class Penalties(commands.Cog):
             for strike in lb_strikes:
                 strike_dict[strike.id] = strike
         strikes = list(strike_dict.values())
-        strikes.sort(key=lambda s: s.awarded_on, reverse=True)
+        strikes.sort(key=lambda s: s.awarded_on)
         if not strikes or not len(strikes):
             return ""
         
