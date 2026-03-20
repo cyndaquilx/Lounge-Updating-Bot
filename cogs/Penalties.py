@@ -15,7 +15,7 @@ class Penalties(commands.Cog):
 
     penalty_group = app_commands.Group(name="penalty", description="Manage penalties", guild_only=True)
 
-    async def get_strike_history(self, server_config: ServerConfig, name: str):
+    async def get_strike_history(self, server_config: ServerConfig, name: str, show_all=False):
         strike_dict: dict[int, Penalty] = {}
         for lb in server_config.leaderboards.values():
             lb_strikes, _ = await API.get.getStrikes(lb.website_credentials, name)
@@ -51,8 +51,11 @@ class Penalties(commands.Cog):
                 num_strikes += 1
             i += 1
         strike_str = ""
-        last_5 = strikes[::-1][:5]
-        for i, strike in enumerate(last_5):
+        if show_all:
+            last_strikes = strikes[::-1]
+        else:
+            last_strikes = strikes[::-1][:5]
+        for i, strike in enumerate(last_strikes):
             # add a divider for strikes counting towards the current limit
             if i == num_strikes:
                 strike_str += "----------\n"
@@ -248,7 +251,7 @@ class Penalties(commands.Cog):
     @commands.command(name="strikelist")
     async def get_strikes_text(self, ctx: commands.Context[UpdatingBot], *, name: str):
         server_config = get_server_config(ctx)
-        strike_str = await self.get_strike_history(server_config, name)
+        strike_str = await self.get_strike_history(server_config, name, show_all=True)
         if strike_str:
             await ctx.send(strike_str)
         else:
