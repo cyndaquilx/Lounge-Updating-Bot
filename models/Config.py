@@ -8,6 +8,7 @@ class WebsiteCredentials:
     password: str
     game: str | None
     has_all_games_endpoint: bool = True
+    game_url: str | None = None # for mkworld, game would be "mkworld12p" and game_url would be "mkworld" for ex.
 
 @dataclass
 class MKCentralCredentials:
