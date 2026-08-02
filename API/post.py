@@ -32,12 +32,12 @@ async def bonusMKC(credentials: WebsiteCredentials, mkc:int, amount:int):
             bonus = Bonus.from_api_response(body)
             return bonus, None
 
-async def createPenalty(credentials: WebsiteCredentials, name: str, amount: int, isStrike: bool):
+async def createPenalty(credentials: WebsiteCredentials, name: str, amount: int, num_strikes: int):
     request_url = f"{credentials.url}/api/penalty/create?name={name}&amount={amount}"
     if credentials.game:
         request_url += f"&game={credentials.game}"
-    if isStrike:
-        request_url += "&isStrike=true"
+    if num_strikes:
+        request_url += f"&numStrikes={num_strikes}"
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.post(request_url, headers=headers) as resp:
             if resp.status == 404:

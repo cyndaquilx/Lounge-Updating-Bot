@@ -7,7 +7,7 @@ class Penalty:
     id: int
     season: int
     awarded_on: datetime
-    is_strike: bool
+    num_strikes: int
     prev_mmr: int
     new_mmr: int
     amount: int
@@ -21,13 +21,13 @@ class Penalty:
         def parse_date(field_name: str):
             return dateutil.parser.isoparse(body[field_name])
         awarded_on = parse_date('awardedOn')
-        is_strike = body['isStrike']
+        num_strikes = body['numStrikes']
         prev_mmr = body['prevMmr']
         new_mmr = body['newMmr']
         amount = body['amount']
         player_id = body['playerId']
         player_name = body['playerName']
-        return cls(id, season, awarded_on, is_strike, prev_mmr,
+        return cls(id, season, awarded_on, num_strikes, prev_mmr,
                    new_mmr, amount, player_id, player_name)
     
     @classmethod

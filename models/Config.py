@@ -39,7 +39,7 @@ class PenaltyType(str, Enum):
 class PenaltyConfig:
     type: PenaltyType
     amount: int
-    is_strike: bool
+    num_strikes: int
 
 @dataclass
 class LeaderboardConfig:
@@ -98,6 +98,7 @@ class ServerConfig:
     name_synced_servers: list[int]
     leaderboards: dict[str, LeaderboardConfig]
     reaction_log_channel: int | None
+    strike_limit: int
 
 @dataclass
 class BotConfig:

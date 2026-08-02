@@ -24,17 +24,20 @@ class Penalties(commands.Cog):
             for strike in lb_strikes:
                 strike_dict[strike.id] = strike
         strikes = list(strike_dict.values())
+        # make num_strikes copies of each strike so they appear correctly in the strike history
+        strikes = [s for s in strikes for _ in range(s.num_strikes)]
         strikes.sort(key=lambda s: s.awarded_on)
         if not strikes or not len(strikes):
             return ""
         
         start_index = 0
         expire_date = strikes[0].awarded_on + timedelta(days=30)
+        strike_limit = server_config.strike_limit
         num_strikes = 1
         i = 1
         while i < len(strikes):
-            # if there's 3 strikes in current strike limit, start new strike limit with 1 strike
-            if num_strikes == 3:
+            # if there's enough strikes for current strike limit, start new strike limit with 1 strike
+            if num_strikes == strike_limit:
                 start_index = i
                 expire_date = strikes[start_index].awarded_on + timedelta(days=30)
                 num_strikes = 1
@@ -65,15 +68,15 @@ class Penalties(commands.Cog):
         return strike_str
 
     async def pen_channel(self, ctx: commands.Context, lb: LeaderboardConfig, player: Player, tier: str, reason: str | None, table_id: int | None,
-                          amount: int, channel: discord.TextChannel, is_anonymous: bool, is_strike: bool):
+                          amount: int, channel: discord.TextChannel, is_anonymous: bool, num_strikes: int):
         assert ctx.guild is not None
-        pen, error = await API.post.createPenalty(lb.website_credentials, player.name, abs(amount), is_strike)
+        pen, error = await API.post.createPenalty(lb.website_credentials, player.name, abs(amount), num_strikes)
         if pen is None:
             await ctx.send(f"An error occurred while penalizing {player.name}:\n{error}")
             return None
         embed_title = "Penalty added"
-        if is_strike:
-            embed_title = "Penalty + strike added"
+        if num_strikes:
+            embed_title = f"Penalty + {num_strikes} strike(s) added"
         tier = tier.upper()
         e = discord.Embed(title=embed_title)
         e.add_field(name="Player", value=f"<@{player.discord_id}>", inline=False)
@@ -87,7 +90,7 @@ class Penalties(commands.Cog):
             e.add_field(name="Reason", value=reason, inline=False)
         if table_id:
             e.add_field(name="Table ID", value=table_id)
-        if is_strike:
+        if num_strikes:
             server_config = get_server_config(ctx)
             strike_str = await self.get_strike_history(server_config, player.name)
             if len(strike_str):
@@ -101,10 +104,10 @@ class Penalties(commands.Cog):
                 if not is_anonymous:
                     # change from mention to name because we are in DMs
                     e.set_field_at(4, name='Given by', value=ctx.author.display_name)
-                if is_strike:
-                    dm_content = "You received a strike in 150cc Lounge:"
+                if num_strikes:
+                    dm_content = f"You received {num_strikes} strike(s) in {ctx.guild.name}:"
                 else:
-                    dm_content = "You received a penalty in 150cc Lounge:"
+                    dm_content = f"You received a penalty in {ctx.guild.name}:"
                 await member.send(embed=e, content=dm_content)
             except Exception as ex:
                 pass
@@ -126,7 +129,7 @@ class Penalties(commands.Cog):
         return pen.id
 
     async def add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier: str, names: list[str], 
-                          reason: str | None, table_id: int | None, is_anonymous=False, is_strike=False):
+                          reason: str | None, table_id: int | None, is_anonymous=False, num_strikes=0):
         assert ctx.guild is not None
         tier = tier.upper()
         if tier not in lb.tier_results_channels.keys():
@@ -155,10 +158,10 @@ class Penalties(commands.Cog):
         if channel:
             assert isinstance(channel, discord.TextChannel)
             for player in players:
-                id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, is_strike))
+                id_result.append(await self.pen_channel(ctx, lb, player, tier, reason, table_id, amount, channel, is_anonymous, num_strikes))
         return id_result
 
-    async def parse_and_add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier, args: str, is_anonymous=False, is_strike=False):
+    async def parse_and_add_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, amount:int, tier, args: str, is_anonymous=False, num_strikes=0):
         split_args = args.split(";")
         names = [s.strip() for s in split_args[0].split(",")]
         if len(set(names)) < len(names):
@@ -167,27 +170,27 @@ class Penalties(commands.Cog):
         reason = None
         if len(split_args) > 1:
             reason = split_args[1].strip()
-        await self.add_penalty(ctx, lb, amount, tier, names, reason, None, is_anonymous, is_strike)
+        await self.add_penalty(ctx, lb, amount, tier, names, reason, None, is_anonymous, num_strikes)
 
     @penalty_group.command(name="new")
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
     async def penalty_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 1, 200], tier:str, names: str, 
-                                reason:str | None, leaderboard: str, strike: bool = False, anonymous: bool = False):
+                                reason:str | None, leaderboard: str, num_strikes: app_commands.Range[int, 1, 3] = 0, anonymous: bool = False):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         parsed_names = [n.strip() for n in names.split(",")]
-        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, strike)
+        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, num_strikes=num_strikes)
 
     @penalty_group.command(name="strike")
     @app_commands.check(app_command_check_updater_roles)
     @app_commands.autocomplete(leaderboard=custom_checks.leaderboard_autocomplete)
-    async def strike_slash(self, interaction: discord.Interaction, amount:app_commands.Range[int, 0, 200], tier:str, names: str, 
+    async def strike_slash(self, interaction: discord.Interaction, num_strikes: app_commands.Range[int, 1, 3], amount:app_commands.Range[int, 0, 200], tier:str, names: str, 
                                 reason:str | None, leaderboard: str, anonymous: bool = False):
         ctx = await commands.Context.from_interaction(interaction)
         lb = get_leaderboard_slash(ctx, leaderboard)
         parsed_names = [n.strip() for n in names.split(",")]
-        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, True)
+        await self.add_penalty(ctx, lb, amount, tier, parsed_names, reason, None, anonymous, num_strikes=num_strikes)
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="penalty", aliases=['pen'])
@@ -203,15 +206,15 @@ class Penalties(commands.Cog):
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="strike", aliases=['str'])
-    async def strike_text(self, ctx, leaderboard: str, amount:int, tier, *, args):
+    async def strike_text(self, ctx, leaderboard: str, num_strikes: int, amount:int, tier, *, args):
         lb = get_leaderboard_arg(ctx, leaderboard)
-        await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True)
+        await self.parse_and_add_penalty(ctx, lb, amount, tier, args, num_strikes=num_strikes)
 
     @commands.check(command_check_updater_roles)
     @commands.command(name="anonymousStrike", aliases=['astr', 'astrike'])
-    async def strike_anonymous_text(self, ctx, leaderboard: str, amount:int, tier, *, args):
+    async def strike_anonymous_text(self, ctx, leaderboard: str, num_strikes: int, amount:int, tier, *, args):
         lb = get_leaderboard_arg(ctx, leaderboard)
-        await self.parse_and_add_penalty(ctx, lb, amount, tier, args, is_strike=True, is_anonymous=True)
+        await self.parse_and_add_penalty(ctx, lb, amount, tier, args, num_strikes=num_strikes, is_anonymous=True)
 
     async def delete_penalty(self, ctx: commands.Context, lb: LeaderboardConfig, pen_id: int, reason: str | None):
         assert isinstance(ctx.channel, Union[discord.TextChannel, discord.Thread])

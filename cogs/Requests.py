@@ -44,9 +44,9 @@ class PenaltyInstance:
     async def apply_multiplier(self, lb, ctx, bot, table, player_name, requests_list: list[PenaltyRequest]):
         pass
 
-    async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, is_strike):
+    async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, num_strikes:int):
         id_result = []
-        id_result += await penalties_cog.add_penalty(ctx, lb, amount, tier, [player_name], reason=self.penalty_name, table_id=self.table_id, is_anonymous=True, is_strike=is_strike)
+        id_result += await penalties_cog.add_penalty(ctx, lb, amount, tier, [player_name], reason=self.penalty_name, table_id=self.table_id, is_anonymous=True, num_strikes=num_strikes)
         return id_result
 
 class RepickInstance(PenaltyInstance):
@@ -61,10 +61,10 @@ class RepickInstance(PenaltyInstance):
         partial_embed.add_field(name="Number of invalid races picked and played", value=self.total_repick)
         return partial_embed
 
-    async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, is_strike):
+    async def apply_penalty(self, lb, ctx, penalties_cog, tier, player_name, amount, num_strikes:int):
         id_result = []
         for _ in range(self.total_repick):    
-            id_result += await penalties_cog.add_penalty(ctx, lb, amount, tier, [player_name], reason=self.penalty_name, table_id=self.table_id, is_anonymous=True, is_strike=is_strike)
+            id_result += await penalties_cog.add_penalty(ctx, lb, amount, tier, [player_name], reason=self.penalty_name, table_id=self.table_id, is_anonymous=True, num_strikes=num_strikes)
         return id_result
 
 class DropInstance(PenaltyInstance):
@@ -251,7 +251,7 @@ class Requests(commands.Cog):
         penalty_instance = penalty_instance_builder(request_data.penalty_name, penalty_type.type, request_data.player_id, request_data.table_id, request_data.number_of_races)
         penalties_cog = self.bot.get_cog('Penalties')
         
-        id_result = await penalty_instance.apply_penalty(table_lb, ctx, penalties_cog, table.tier, request_data.player_name, penalty_type.amount, penalty_type.is_strike)
+        id_result = await penalty_instance.apply_penalty(table_lb, ctx, penalties_cog, table.tier, request_data.player_name, penalty_type.amount, penalty_type.num_strikes)
 
         embed = discord.Embed()
         embed.title = "Penalty request accepted" if None not in id_result else "Penalty request error"
