@@ -188,10 +188,14 @@ async def getPending(credentials: WebsiteCredentials) -> list[Table] | None:
             tables = Table.from_list_api_response(body)
             return tables
     
-async def getPlayerList(credentials: WebsiteCredentials) -> list[ListPlayer] | None:
-    request_url = f"{credentials.url}/api/player/list"
+async def getPlayerList(credentials: WebsiteCredentials, season: int | None = None) -> list[ListPlayer] | None:
+    request_url = f"{credentials.url}/api/player/list?"
+    args = []
     if credentials.game:
-        request_url += f"?game={credentials.game}"
+        args.append(f"game={credentials.game}")
+    if season:
+        args.append(f"season={season}")
+    request_url += "&".join(args)
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
         async with session.get(request_url,headers=headers) as resp:
             if resp.status != 200:
