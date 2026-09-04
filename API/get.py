@@ -196,7 +196,7 @@ async def getPlayerList(credentials: WebsiteCredentials, season: int | None = No
         game = "mkworld"
     if credentials.game:
         args.append(f"game={game}")
-    if season:
+    if season is not None:
         args.append(f"season={season}")
     request_url += "&".join(args)
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(credentials.username, credentials.password)) as session:
