@@ -191,6 +191,9 @@ async def getPending(credentials: WebsiteCredentials) -> list[Table] | None:
 async def getPlayerList(credentials: WebsiteCredentials, season: int | None = None) -> list[ListPlayer] | None:
     request_url = f"{credentials.url}/api/player/list?"
     args = []
+    game = credentials.game
+    if game in ["mkworld12p", "mkworld24p"] and season is not None and season < 2:
+        game = "mkworld"
     if credentials.game:
         args.append(f"game={credentials.game}")
     if season:
