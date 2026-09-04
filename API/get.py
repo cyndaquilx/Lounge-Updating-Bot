@@ -195,7 +195,7 @@ async def getPlayerList(credentials: WebsiteCredentials, season: int | None = No
     if game in ["mkworld12p", "mkworld24p"] and season is not None and season < 2:
         game = "mkworld"
     if credentials.game:
-        args.append(f"game={credentials.game}")
+        args.append(f"game={game}")
     if season:
         args.append(f"season={season}")
     request_url += "&".join(args)
