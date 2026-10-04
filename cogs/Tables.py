@@ -51,10 +51,13 @@ class Tables(commands.Cog):
                 if gp.strip().isdigit() == False:
                     return False
         def get_gps(scores: str):
-            gp_strings = re.split("[|+]", scores)
+            gp_strings = scores.split("|")
             gp_scores: list[int] = []
             for gp in gp_strings:
-                gp_score = int(gp.strip())
+                gp_split = gp.split("+")
+                gp_score = 0
+                for sp in gp_split:
+                    gp_score += int(sp)
                 gp_scores.append(gp_score)
             # if there's only 1 gp per mogi for our lb,
             # just return the total sum
